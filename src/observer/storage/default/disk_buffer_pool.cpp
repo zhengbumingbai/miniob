@@ -468,6 +468,7 @@ RC DiskBufferPool::allocate_block(Frame **buffer)
     }
   }
 
+    // 找到最久未使用过的frame 并且unpined的 
   int min = 0;
   unsigned long mintime = 0;
   bool flag = false;
@@ -484,6 +485,7 @@ RC DiskBufferPool::allocate_block(Frame **buffer)
       mintime = bp_manager_.frame[i].acc_time;
     }
   }
+
   if (!flag) {
     LOG_ERROR("All pages have been used and pinned.");
     return RC::NOMEM;
