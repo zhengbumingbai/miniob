@@ -48,7 +48,6 @@ Table::Table() :
 }
 
 Table::~Table() {
-  destroy_table();
   delete record_handler_;
   record_handler_ = nullptr;
 
@@ -178,14 +177,14 @@ RC Table::destroy_table() {
   if (file_exist(table_file_path.c_str())) {
     remove(table_file_path.c_str());
   } else {
-    return RC::SCHEMA_TABLE_NOT_EXIST;
+    return RC::IOERR_DELETE;
   }
 
   // delete table data file
   if (file_exist(table_data_path.c_str())) {
     remove(table_data_path.c_str());
   } else {
-    return RC::SCHEMA_TABLE_NOT_EXIST;
+    return RC::IOERR_DELETE;
   }
 
   // delete index files
@@ -202,7 +201,7 @@ RC Table::destroy_table() {
     if (file_exist(index_file.c_str())) {
       remove(index_file.c_str());
     } else {
-      return RC::SCHEMA_INDEX_NOT_EXIST;
+      return RC::IOERR_DELETE;
     }
   }
 

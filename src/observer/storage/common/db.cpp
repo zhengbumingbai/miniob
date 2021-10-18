@@ -78,12 +78,18 @@ RC Db::drop_table(const char *table_name) {
   Table* table = find_table(table_name);
   if (table == nullptr) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
-  } else {
-    // close table 
-    delete table;
-    // erase table map record
-    opened_tables_.erase(table_name);
+  } 
+
+  // Delete files and BPlus tree index
+  rc = table->destroy_table();
+  if (rc != RC::SUCCESS) {
+    return rc;
   }
+
+  // close table 
+  delete table;
+  // erase table map record
+  opened_tables_.erase(table_name);
 
   LOG_INFO("Delete table success. table name=%s", table_name);
   return rc;
