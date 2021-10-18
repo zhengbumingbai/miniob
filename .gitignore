@@ -33,3 +33,6 @@
 
 build
 .vscode
+
+observer.log*
+miniob
