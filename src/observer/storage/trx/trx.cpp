@@ -84,6 +84,24 @@ RC Trx::delete_record(Table *table, Record *record) {
   return rc;
 }
 
+// RC Trx::update_record(Table *table, Record *record) {
+//   // 模仿delete_record代码
+//   RC rc = RC::SUCCESS;
+//   start_if_not_started();
+//   Operation *old_oper = find_operation(table, record->rid);
+//   if (old_oper != nullptr) {
+//     if (old_oper->type() == Operation::Type::INSERT) {
+//       delete_operation(table, record->rid);
+//       return RC::SUCCESS;
+//     } else {
+//       return RC::GENERIC_ERROR;
+//     }
+//   }
+//   set_record_trx_id(table, *record, trx_id_, true);
+//   insert_operation(table, Operation::Type::DELETE, record->rid);
+//   return rc;
+// }
+
 void Trx::set_record_trx_id(Table *table, Record &record, int32_t trx_id, bool deleted) const {
   const FieldMeta *trx_field = table->table_meta().trx_field();
   int32_t *ptrx_id = (int32_t*)(record.data + trx_field->offset());
@@ -216,6 +234,11 @@ RC Trx::rollback() {
   trx_id_ = 0;
   return rc;
 }
+
+// RC Trx::commit_update(Table *table, Record &record) {
+//   set_record_trx_id(table, record, 0, false);
+//   return RC::SUCCESS;
+// }
 
 RC Trx::commit_insert(Table *table, Record &record) {
   set_record_trx_id(table, record, 0, false);

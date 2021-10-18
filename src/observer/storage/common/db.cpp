@@ -25,19 +25,6 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/table.h"
 #include "storage/common/meta_util.h"
 
-bool file_exist(const char *file)
-{
-    FILE *fp;
-    fp=fopen(file,"r");
-
-    if(fp == NULL) {
-      return false;
-    } else {
-      fclose(fp);
-      return true;
-    }
-}
-
 Db::~Db() {
   for (auto &iter : opened_tables_) {
     delete iter.second;
@@ -91,29 +78,18 @@ RC Db::drop_table(const char *table_name) {
   Table* table = find_table(table_name);
   if (table == nullptr) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
-  } else {
-    // close table 
-    delete table;
-    // erase table map record
-    opened_tables_.erase(table_name);
+  } 
+
+  // Delete files and BPlus tree index
+  rc = table->destroy_table();
+  if (rc != RC::SUCCESS) {
+    return rc;
   }
 
-  std::string table_file_path = table_meta_file(path_.c_str(), table_name);
-  std::string table_data_path = table_data_file(path_.c_str(), table_name);
-
-  // delete table file
-  if (file_exist(table_file_path.c_str())) {
-    remove(table_file_path.c_str());
-  } else {
-    return RC::SCHEMA_TABLE_NOT_EXIST;
-  }
-
-  // delete table data
-  if (file_exist(table_data_path.c_str())) {
-    remove(table_data_path.c_str());
-  } else {
-    return RC::SCHEMA_TABLE_NOT_EXIST;
-  }
+  // close table 
+  delete table;
+  // erase table map record
+  opened_tables_.erase(table_name);
 
   LOG_INFO("Delete table success. table name=%s", table_name);
   return rc;
