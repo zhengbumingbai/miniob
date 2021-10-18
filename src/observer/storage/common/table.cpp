@@ -28,6 +28,19 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/bplus_tree_index.h"
 #include "storage/trx/trx.h"
 
+bool file_exist(const char *file)
+{
+    FILE *fp;
+    fp=fopen(file,"r");
+
+    if(fp == NULL) {
+      return false;
+    } else {
+      fclose(fp);
+      return true;
+    }
+}
+
 Table::Table() : 
     data_buffer_pool_(nullptr),
     file_id_(-1),
@@ -35,6 +48,7 @@ Table::Table() :
 }
 
 Table::~Table() {
+  destroy_table();
   delete record_handler_;
   record_handler_ = nullptr;
 
@@ -151,6 +165,50 @@ RC Table::open(const char *meta_file, const char *base_dir) {
       return rc;
     }
     indexes_.push_back(index);
+  }
+  return rc;
+}
+
+RC Table::destroy_table() {
+  RC rc = RC::SUCCESS;
+  std::string table_file_path = table_meta_file(base_dir_.c_str(), name());
+  std::string table_data_path = table_data_file(base_dir_.c_str(), name());
+
+  // delete table metadata file
+  if (file_exist(table_file_path.c_str())) {
+    remove(table_file_path.c_str());
+  } else {
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  // delete table data file
+  if (file_exist(table_data_path.c_str())) {
+    remove(table_data_path.c_str());
+  } else {
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  // delete index files
+  const int index_num = table_meta_.index_num();
+  for (int i = 0; i < index_num; i++) {
+    const IndexMeta *index_meta = table_meta_.index(i);
+    const FieldMeta *field_meta = table_meta_.field(index_meta->field());
+    if (field_meta == nullptr) {
+      LOG_PANIC("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
+                name(), index_meta->name(), index_meta->field());
+      return RC::GENERIC_ERROR;
+    }
+    std::string index_file = index_data_file(base_dir_.c_str(), name(), index_meta->name());
+    if (file_exist(index_file.c_str())) {
+      remove(index_file.c_str());
+    } else {
+      return RC::SCHEMA_INDEX_NOT_EXIST;
+    }
+  }
+
+  // release index BPlus tree
+  for (Index * index : indexes_) {
+    delete index;
   }
   return rc;
 }
