@@ -694,7 +694,7 @@ RC Table::update_record(Trx *trx, Record *old_record, Record *record) {
     RC rc2 = record_handler_->update_record(old_record);
     if (rc2 != RC::SUCCESS) {
       LOG_ERROR("Rollback record failed. table name=%s, rc=%d:%s", table_meta_.name(), rc, strrc(rc));
-      RC rc3 = record_handler_->delete_record(&record->rid);
+      RC rc3 = record_handler_->delete_record(&old_record->rid);
       if (rc3 != RC::SUCCESS) {
         LOG_PANIC("Failed to delete record data when update record failed and rollback old record failed. table name=%s, rc=%d:%s",
                   name(), rc3, strrc(rc3));
@@ -703,17 +703,17 @@ RC Table::update_record(Trx *trx, Record *old_record, Record *record) {
     }
 
     delete_entry_of_indexes(record->data, record->rid, true);
-    delete_entry_of_indexes(old_record->data, record->rid, true);
+    delete_entry_of_indexes(old_record->data, old_record->rid, true);
     // 暂不处理删除旧索引以及新索引错误的rc，因为可能在update索引过程中，旧索引已经删除，新索引还没插入。这需要判断更详细的状态码。
 
     // 因为update_record错误不会删改旧数据，所以rollback索引，插回旧索引
-    RC rc4 = insert_entry_of_indexes(old_record->data, record->rid);
+    RC rc4 = insert_entry_of_indexes(old_record->data, old_record->rid);
     if (rc4 != RC::SUCCESS) {
       LOG_PANIC("Failed to rollback index data when update index entries failed. table name=%s, rc=%d:%s",
                 name(), rc4, strrc(rc4));
       // 暂不处理
-      delete_entry_of_indexes(old_record->data, record->rid, true);
-      RC rc5 = record_handler_->delete_record(&record->rid);
+      delete_entry_of_indexes(old_record->data, old_record->rid, true);
+      RC rc5 = record_handler_->delete_record(&old_record->rid);
       if (rc5 != RC::SUCCESS) {
         LOG_PANIC("Failed to delete record data when update index entries failed and rollback index entries failed. table name=%s, rc=%d:%s",
                   name(), rc5, strrc(rc5));
