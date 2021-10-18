@@ -33,3 +33,5 @@
 
 build
 .vscode
+
+etc/observer_debug.ini
