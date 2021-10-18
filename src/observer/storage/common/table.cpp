@@ -611,6 +611,7 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   return rc;
 }
 
+
 class RecordUpdater{
 public:
   RecordUpdater(Table &table, Trx *trx, const char *attribute_name, const Value *value) : table_(table), trx_(trx),  attribute_name_(attribute_name), value_(value){
