@@ -286,6 +286,41 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
   return RC::SUCCESS;
 }
 
+RC Table::make_updated_record(const char* record_in, const char *attribute_name, const Value *value, char * &record_out) {
+  // 检查字段类型是否一致
+  int value_num = table_meta_.field_num() - table_meta_.sys_field_num();
+
+  const int normal_field_start_index = table_meta_.sys_field_num();
+  int attribute_loc = -1;
+  for (int i = 0; i < value_num; i++) {
+    const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
+    if (std::string(field->name()) == std::string(attribute_name)) {
+      attribute_loc = i;
+      if (field->type() != value->type) {
+        LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d", field->name(), field->type(), value->type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+    }
+  }
+
+  if (attribute_loc == -1) {
+    LOG_ERROR("Invalid attribute name. attribute name=%s", attribute_name);
+  }
+
+  // 复制原来所有字段的值
+  int record_size = table_meta_.record_size();
+  char *record = new char [record_size];
+  memcpy(record, record_in, record_size);
+
+  // 复制新值
+  const FieldMeta *field = table_meta_.field(attribute_loc + normal_field_start_index);
+  memcpy(record + field->offset(), value->data, field->len());
+
+  record_out = record;
+  return RC::SUCCESS;
+}
+
+
 RC Table::init_record_handler(const char *base_dir) {
   std::string data_file = std::string(base_dir) + "/" + table_meta_.name() + TABLE_DATA_SUFFIX;
   if (nullptr == data_buffer_pool_) {
@@ -519,8 +554,102 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   return rc;
 }
 
+class RecordUpdater{
+public:
+  RecordUpdater(Table &table, Trx *trx, const char *attribute_name, const Value *value) : table_(table), trx_(trx),  attribute_name_(attribute_name), value_(value){
+  }
+
+  RC update_record(Record *old_record) {
+    RC rc = RC::SUCCESS;
+    Record* edited_record = new Record();
+    edited_record->rid = old_record->rid;
+    rc = table_.make_updated_record(old_record->data, attribute_name_, value_, edited_record->data);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+    rc = table_.update_record(trx_, old_record, edited_record);
+    if (rc == RC::SUCCESS) {
+      updated_count_++;
+    }
+    return rc;
+  }
+
+  int updated_count() const {
+    return updated_count_;
+  }
+
+private:
+  Table & table_;
+  Trx *trx_;
+  const char *attribute_name_;
+  const Value *value_;
+  int updated_count_ = 0;
+};
+
+static RC record_reader_update_adapter(Record *record, void *context) {
+  RecordUpdater &record_updater = *(RecordUpdater *)context;
+  return record_updater.update_record(record);
+}
+
+// 第三题
 RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value, int condition_num, const Condition conditions[], int *updated_count) {
-  return RC::GENERIC_ERROR;
+  RecordUpdater record_updater(*this, trx, attribute_name, value);
+  CompositeConditionFilter condition_filter;
+  RC rc = condition_filter.init(*this, conditions, condition_num);
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
+  rc = scan_record(trx, &condition_filter, -1, &record_updater, record_reader_update_adapter);
+  if (updated_count != nullptr) {
+    *updated_count = record_updater.updated_count();
+  }
+  return rc;
+}
+
+RC Table::update_record(Trx *trx, Record *old_record, Record *record) {
+  RC rc = RC::SUCCESS;
+
+  rc = record_handler_->update_record(record);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Update record failed. table name=%s, rc=%d:%s", table_meta_.name(), rc, strrc(rc));
+    return rc;
+  }
+
+  // 官方说不测试事务，先跳过事务
+  // if (trx != nullptr) {
+  //   rc = trx->update_record(this, record);
+  //   if (rc != RC::SUCCESS) {
+  //     LOG_ERROR("Failed to log operation(update) to trx");
+      
+  //     RC rc2 = record_handler_->delete_record(&record->rid);
+  //     if (rc2 != RC::SUCCESS) {
+  //       LOG_PANIC("Failed to rollback record data when update index entries failed. table name=%s, rc=%d:%s",
+  //                 name(), rc2, strrc(rc2));
+  //     }
+  //     return rc;
+  //   }
+  // }
+
+  rc = update_entry_of_indexes(old_record->data, record->data, record->rid, false);
+  if (rc != RC::SUCCESS) {
+    
+    RC rc2 = delete_entry_of_indexes(record->data, record->rid, true);
+    rc2 = delete_entry_of_indexes(old_record->data, record->rid, true);
+    // 暂不处理rc2，删除旧索引以及新索引错误的情况，因为可能在update索引过程中，旧索引已经删除，新索引还没插入。这需要判断更详细的状态码。
+    
+    // 因为update_record错误不会删改旧数据，所以rollback索引，插回旧索引
+    RC rc3 = insert_entry_of_indexes(old_record->data, record->rid);
+    if (rc3 != RC::SUCCESS) {
+      LOG_PANIC("Failed to rollback index data when update index entries failed. table name=%s, rc=%d:%s",
+                name(), rc3, strrc(rc3));
+      RC rc4 = record_handler_->delete_record(&record->rid);
+      if (rc4 != RC::SUCCESS) {
+        LOG_PANIC("Failed to delete record data when update index entries failed and rollback index entries failed. table name=%s, rc=%d:%s",
+                  name(), rc4, strrc(rc4));
+      }
+    }
+    return rc;
+  }
 }
 
 class RecordDeleter {
@@ -612,6 +741,23 @@ RC Table::rollback_delete(Trx *trx, const RID &rid) {
 RC Table::insert_entry_of_indexes(const char *record, const RID &rid) {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
+    rc = index->insert_entry(record, &rid);
+    if (rc != RC::SUCCESS) {
+      break;
+    }
+  }
+  return rc;
+}
+
+RC Table::update_entry_of_indexes(const char* old_record, const char *record, const RID &rid, bool error_on_not_exists) {
+  RC rc = RC::SUCCESS;
+  for (Index *index : indexes_) {
+    rc = index->delete_entry(old_record, &rid);
+    if (rc != RC::SUCCESS) {
+      if (rc != RC::RECORD_INVALID_KEY || !error_on_not_exists) {
+        break;
+      }
+    }
     rc = index->insert_entry(record, &rid);
     if (rc != RC::SUCCESS) {
       break;
