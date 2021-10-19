@@ -361,7 +361,8 @@ RC Table::make_updated_record(const char* record_in, const char *attribute_name,
   }
 
   if (attribute_loc == -1) {
-    LOG_ERROR("Invalid attribute name. attribute name=%s", attribute_name);
+    LOG_ERROR("Attribute not exists. attribute name=%s", attribute_name);
+    return RC::SCHEMA_FIELD_NOT_EXIST;
   }
 
   // 复制原来所有字段的值
