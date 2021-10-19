@@ -24,6 +24,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include <list>
 #include <vector>
+// #include <unordered_map>
 
 #include "rc.h"
 
@@ -117,9 +118,11 @@ public:
   }
 
   Frame *get(int file_desc, PageNum page_num) {
-    for(auto &it:frame_list){
-        if(it->file_desc==file_desc&&it->page.page_num==page_num){
-            return it;
+    for(auto it=frame_list.begin();it!= frame_list.end();it++){
+        if((*it)->file_desc==file_desc&&(*it)->page.page_num==page_num){
+            frame_list.erase(it);
+            frame_list.push_front(*it);
+            return *it;
         }
     }
 
@@ -135,6 +138,8 @@ public:
   Frame * frame = nullptr;
   bool *allocated = nullptr;
   std::list<Frame *> frame_list;
+  // LRU后面再做
+  // std::unordered_map<std::pair<int, PageNum>, Frame*> frame_map;
 };
 
 class DiskBufferPool {
