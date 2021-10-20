@@ -34,6 +34,8 @@
 build
 .vscode
 
+etc/observer_debug.ini
+
 observer.log*
 observer_debug.ini
 miniob

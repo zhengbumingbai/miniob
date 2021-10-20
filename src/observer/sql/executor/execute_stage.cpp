@@ -305,6 +305,8 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     if (tuple_sets.size() > 1)
     {
         // 本次查询了多张表，需要做join操作
+        LOG_ERROR("Have not implement join.");
+        return RC::GENERIC_ERROR;
     }
     else
     {

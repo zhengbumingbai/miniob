@@ -39,8 +39,8 @@ TEST(test_bp_manager, test_bp_manager_simple_lru) {
   frame3->page.page_num = 3;
 
   frame2 = bp_manager.get(0, 2);
-//   ASSERT_EQ(frame2, nullptr);
-  ASSERT_NE(frame2, nullptr);
+  ASSERT_EQ(frame2, nullptr);
+  // ASSERT_NE(frame2, nullptr);
 
   Frame *frame4 = bp_manager.alloc();
   frame4->file_desc = 0;

@@ -111,7 +111,7 @@ void yyerror(yyscan_t scanner, const char *str)
   context->from_length = 0;
   context->select_length = 0;
   context->value_length = 0;
-  context->ssql->sstr.insertion.value_num = 0;
+  context->ssql->sstr.errors = NULL;
   printf("parse sql failed. error=%s", str);
 }
 
@@ -247,6 +247,9 @@ typedef union YYSTYPE YYSTYPE;
 #endif
 
 
+int yyparse (void *scanner);
+
+#endif /* !YY_YY_YACC_SQL_TAB_H_INCLUDED  */
 
 int yyparse (void *scanner);
 
