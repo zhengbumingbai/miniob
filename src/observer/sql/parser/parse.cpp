@@ -108,8 +108,9 @@ int str_to_time(const char *time_str)
     strptime(time_str, "%Y-%m-%d", &tm_time);
     unixtime = mktime(&tm_time);
 
-    LOG_DEBUG("year: %d month: %d day: %d", tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_yday + 1);
-    bool result = DateVerify(tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_yday + 1);
+    //年份是减去1900后的所以需要+1900 月份 0-11需要＋1 日期 1-31 不需要 +1 
+    LOG_DEBUG("year: %d month: %d day: %d", tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday);
+    bool result = DateVerify(tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday);
     if(result) 
         return unixtime;
     else
