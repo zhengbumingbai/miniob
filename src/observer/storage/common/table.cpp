@@ -318,10 +318,17 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
     return RC::SCHEMA_FIELD_MISSING;
   }
 
+
   const int normal_field_start_index = table_meta_.sys_field_num();
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
+    // 校验UNIX时间戳是否合法
+    if (value.type == DATES && *(int *)value.data == INT32_MIN)
+    {
+        return RC::RECORD;
+    }
+    
     if (field->type() != value.type) {
       LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
         field->name(), field->type(), value.type);
@@ -829,7 +836,7 @@ RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool error
   for (Index *index : indexes_) {
     rc = index->delete_entry(record, &rid);
     if (rc != RC::SUCCESS) {
-      if (rc != RC::RECORD_INVALID_KEY || !error_on_not_exists) {
+      if (rc != RC::RECORD_INVALID_KEY || error_on_not_exists) {
         break;
       }
     }

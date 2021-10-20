@@ -44,8 +44,12 @@ void Tuple::add(TupleValue *value) {
 void Tuple::add(const std::shared_ptr<TupleValue> &other) {
   values_.emplace_back(other);
 }
-void Tuple::add(int value) {
-  add(new IntValue(value));
+void Tuple::add(int value, AttrType type)
+{
+    if(type==DATES)
+        add(new DateValue(value));
+    else if (type == INTS)
+        add(new IntValue(value));
 }
 
 void Tuple::add(float value) {
@@ -55,6 +59,12 @@ void Tuple::add(float value) {
 void Tuple::add(const char *s, int len) {
   add(new StringValue(s, len));
 }
+
+// 新增Date类型处理
+// void Tuple::add(int unix_time,AttrType type)
+// {
+//     add(new DateValue(unix_time));
+// }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,7 +231,7 @@ void TupleRecordConverter::add_record(const char *record) {
     switch (field_meta->type()) {
       case INTS: {
         int value = *(int*)(record + field_meta->offset());
-        tuple.add(value);
+        tuple.add(value,INTS);
       }
       break;
       case FLOATS: {
@@ -234,13 +244,24 @@ void TupleRecordConverter::add_record(const char *record) {
         tuple.add(s, strlen(s));
       }
       break;
+      case DATES:
+      {
+        //   LOG_ERROR("DATES type test-1!");
+          int value = *(int *)(record + field_meta->offset()); // 现在当做Cstring来处理
+        //   LOG_ERROR("DATES type test-2!");
+          tuple.add(value,DATES);
+        //   LOG_ERROR("DATES type test-3!");
+      }
+      break;
       default: {
         LOG_PANIC("Unsupported field type. type=%d", field_meta->type());
       }
     }
   }
 
+//   LOG_DEBUG("DATES type test-4!");
   tuple_set_.add(std::move(tuple));
+//   LOG_DEBUG("DATES type test-5!");
 }
 
 

@@ -59,6 +59,7 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "bit": "cpp",
-        "cerrno": "cpp"
+        "cerrno": "cpp",
+        "forward_list": "cpp"
     }
 }

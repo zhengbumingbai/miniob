@@ -52,6 +52,84 @@ void value_init_string(Value *value, const char *v) {
   value->type = CHARS;
   value->data = strdup(v);
 }
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+
+bool DateVerify(int year, int month, int day)
+{
+    if (year < 1970 || year > 2038 || month < 1 || month > 12 || day < 1 || day > 31)
+    {
+        return false;
+    }
+
+    switch (month)
+    {
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+        if (day > 30)
+        { // 4.6.9.11月天数不能大于30
+            return false;
+        }
+        break;
+    case 2:
+    {
+        bool bLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        if ((bLeapYear && day > 29) || (!bLeapYear && day > 28))
+        {
+            // 闰年2月不能大于29天;平年2月不能大于28天
+            return false;
+        }
+    }
+    break;
+    default:
+        break;
+    }
+
+    return true;
+}
+
+
+// 增加时间转化函数
+int str_to_time(const char *time_str)
+{
+    // std::time_t 
+    struct tm tm_time;
+    memset(&tm_time, 0, sizeof(struct tm));
+
+    // TODO 错误时间处理
+    // bool result = CheckDateValid(time_str);
+
+    // unix time <0 表示 1970年以前 表示时间戳生成错误 ==> 时间字符串错误
+    time_t unixtime = INT32_MIN;
+    strptime(time_str, "%Y-%m-%d", &tm_time);
+    unixtime = mktime(&tm_time);
+
+    LOG_DEBUG("year: %d month: %d day: %d", tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_yday + 1);
+    bool result = DateVerify(tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_yday + 1);
+    if(result) 
+        return unixtime;
+    else
+        return INT32_MIN;
+    // printf("converted to %ld", unixtime);
+
+    // return unixtime;
+}
+
+// 将字符串转化为int存储
+void value_init_date(Value *value, const char *v)
+{
+    value->type = DATES;
+    int time = str_to_time(v);
+    value->data = malloc(sizeof(int));
+
+    // printf("Store time: %ud\n",time);
+    memcpy(value->data, &time, sizeof(int));
+}
+
 void value_destroy(Value *value) {
   value->type = UNDEFINED;
   free(value->data);

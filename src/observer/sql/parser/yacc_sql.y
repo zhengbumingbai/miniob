@@ -83,6 +83,7 @@ ParserContext *get_context(yyscan_t scanner)
         INT_T
         STRING_T
         FLOAT_T
+        DATE_T
         HELP
         EXIT
         DOT //QUOTE
@@ -116,6 +117,8 @@ ParserContext *get_context(yyscan_t scanner)
 %token <number> NUMBER
 %token <floats> FLOAT 
 %token <string> ID
+// 表示 DATE是一个字符串
+%token <string> DATE
 %token <string> PATH
 %token <string> SSS
 %token <string> STAR
@@ -268,6 +271,8 @@ type:
 	INT_T { $$=INTS; }
        | STRING_T { $$=CHARS; }
        | FLOAT_T { $$=FLOATS; }
+    //    新增DATE_T 属性的token
+       | DATE_T { $$=DATES; }
        ;
 ID_get:
 	ID 
@@ -311,6 +316,11 @@ value:
     |SSS {
 			$1 = substr($1,1,strlen($1)-2);
   		value_init_string(&CONTEXT->values[CONTEXT->value_length++], $1);
+		}
+        // 新增value类型 DATE的字符串处理
+    |DATE {
+			$1 = substr($1,1,strlen($1)-2);
+  		value_init_date(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
     ;
     

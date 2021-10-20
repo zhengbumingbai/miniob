@@ -35,4 +35,5 @@ build
 .vscode
 
 observer.log*
+observer_debug.ini
 miniob

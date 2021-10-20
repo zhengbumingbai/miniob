@@ -98,7 +98,6 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     right.attr_length = field_right->len();
     right.attr_offset = field_right->offset();
     type_right = field_right->type();
-
     right.value = nullptr;
   } else {
     right.is_attr = false;

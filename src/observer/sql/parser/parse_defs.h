@@ -40,7 +40,7 @@ typedef enum {
 } CompOp;
 
 //属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS } AttrType;
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
 
 //属性值
 typedef struct _Value {
@@ -180,13 +180,27 @@ extern "C" {
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
 
+// 增加时间转化函数
+int str_to_time(const char *time_str);
+
+// 将字符串转化为int存储
+void value_init_date(Value *value, const char *v);
 void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);
 void value_init_string(Value *value, const char *v);
 void value_destroy(Value *value);
 
+// std::string trim(const std::string &str);
+
+// void split(const std::string &str, std::vector<std::string> *ret_, std::string sep = ",");
+
+// bool DateVerify(int year, int month, int day);
+
+// // 校验yyyy/mm/dd
+// bool CheckDateValid(const std::string &strDate);
+
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-    int right_is_attr, RelAttr *right_attr, Value *right_value);
+                    int right_is_attr, RelAttr *right_attr, Value *right_value);
 void condition_destroy(Condition *condition);
 
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length);
