@@ -91,7 +91,25 @@ public:
 
     void to_string(std::ostream &os) const override
     {
-        os << value_;
+        // 先保存两位小数 再转化为字符串处理
+      char buf[128];
+      sprintf(buf, "%.2f", value_);
+    //   std::string s(buf);
+      for (size_t i = 0; i < 128; i++) {
+        if (buf[i] == '.') {
+          // 最后一位
+          if (i + 2 < 128 && buf[i + 2] == '0') {
+            buf[i + 2] = '\0';
+
+            if (i + 1 < 128 && buf[i + 1] == '0') {
+              buf[i] = '\0';
+            }
+          }
+          break;
+        }
+    }
+
+    os << buf;
     }
 
     int compare(const TupleValue &other) const override
