@@ -247,9 +247,6 @@ typedef union YYSTYPE YYSTYPE;
 #endif
 
 
-int yyparse (void *scanner);
-
-#endif /* !YY_YY_YACC_SQL_TAB_H_INCLUDED  */
 
 int yyparse (void *scanner);
 
