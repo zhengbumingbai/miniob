@@ -37,6 +37,39 @@ void relation_attr_destroy(RelAttr *relation_attr) {
   relation_attr->relation_name = nullptr;
   relation_attr->attribute_name = nullptr;
 }
+// insert into tt values('2038-1-19');
+// SELECT *FROM tt WHERE u_date > '2020-1-20';
+// SELECT *FROM tt WHERE u_date < '2019-12-31';
+// SELECT *FROM tt WHERE u_date = '2020-1-1';
+
+// 新增 record 初始化
+void record_init(Insert_Record *record, Value *value, int value_length)
+{
+    LOG_DEBUG("初始化一个记录");
+    record->value_num = value_length;
+    for (size_t i = 0; i < value_length; i++)
+    {
+        
+        record->values[i].type = value->type;
+
+        switch (value->type)
+        {
+        case INTS:
+        case FLOATS:
+        case CHARS:
+        case DATES:
+        // 当前默认都是四字节
+        record->values[i].data = malloc(sizeof(int));
+        memcpy(record->values[i].data, value->data, sizeof(int));
+        break;
+        default:
+            break;
+        }
+
+        LOG_DEBUG("value-type: %d data: %d" , value->type,*(int *)(value->data));
+    }
+
+}
 
 void value_init_integer(Value *value, int v) {
   value->type = INTS;
@@ -212,23 +245,39 @@ void selects_destroy(Selects *selects) {
   selects->condition_num = 0;
 }
 
-void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num) {
-  assert(value_num <= sizeof(inserts->values)/sizeof(inserts->values[0]));
-
-  inserts->relation_name = strdup(relation_name);
-  for (size_t i = 0; i < value_num; i++) {
-    inserts->values[i] = values[i];
-  }
-  inserts->value_num = value_num;
+// 修改record存储
+void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record records[], size_t record_num)
+{
+    // 数据的深拷贝！
+    assert(record_num <= sizeof(inserts->records) / sizeof(inserts->records[0]));
+    inserts->relation_name = strdup(relation_name);
+    for (size_t i = 0; i < record_num; i++)
+    {
+        inserts->records[i].value_num = records[i].value_num;
+        for (size_t j = 0; j< records[i].value_num; j++) {
+          inserts->records[i].values[j].type = records[i].values[j].type;
+          inserts->records[i].values[j].data = malloc(sizeof(int));
+          memcpy(inserts->records[i].values[j].data, records[i].values[j].data,
+                 sizeof(int));
+        }
+    }
+    inserts->record_num = record_num;
 }
+
+
+// 增加recoed的销毁
 void inserts_destroy(Inserts *inserts) {
   free(inserts->relation_name);
   inserts->relation_name = nullptr;
 
-  for (size_t i = 0; i < inserts->value_num; i++) {
-    value_destroy(&inserts->values[i]);
+  for (size_t i = 0; i < inserts->record_num; i++) {
+      for (size_t j = 0; j < inserts->records[i].value_num; j++)
+      {
+          value_destroy(&inserts->records[i].values[j]);
+      }
+      inserts->records[i].value_num = 0;
   }
-  inserts->value_num = 0;
+  inserts->record_num = 0;
 }
 
 void deletes_init_relation(Deletes *deletes, const char *relation_name) {

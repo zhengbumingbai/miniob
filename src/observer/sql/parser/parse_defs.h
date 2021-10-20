@@ -70,12 +70,20 @@ typedef struct {
   Condition conditions[MAX_NUM];    // conditions in Where clause
 } Selects;
 
+// 新增recore类型
+typedef struct
+{
+    size_t value_num;      // Length of values
+    Value values[MAX_NUM]; // values to insert
+} Insert_Record;
+
 // struct of insert
 typedef struct {
   char *relation_name;    // Relation to insert into
-  size_t value_num;       // Length of values
-  Value values[MAX_NUM];  // values to insert
+  Insert_Record records[MAX_NUM]; // values to insert
+  size_t record_num;
 } Inserts;
+
 
 // struct of delete
 typedef struct {
@@ -212,7 +220,7 @@ void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 void selects_destroy(Selects *selects);
 
-void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num);
+void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record records[], size_t record_num);
 void inserts_destroy(Inserts *inserts);
 
 void deletes_init_relation(Deletes *deletes, const char *relation_name);

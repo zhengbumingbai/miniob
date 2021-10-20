@@ -211,6 +211,7 @@ RC CompositeConditionFilter::init(Table &table, const Condition *conditions, int
   if (condition_num == 0) {
     return RC::SUCCESS;
   }
+  
   if (conditions == nullptr) {
     return RC::INVALID_ARGUMENT;
   }

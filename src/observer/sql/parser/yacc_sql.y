@@ -16,7 +16,9 @@ typedef struct ParserContext {
   size_t condition_length;
   size_t from_length;
   size_t value_length;
+  size_t record_length;
   Value values[MAX_NUM];
+  Insert_Record records[MAX_NUM];
   Condition conditions[MAX_NUM];
   CompOp comp;
 	char id[MAX_NUM];
@@ -284,7 +286,7 @@ ID_get:
 
 	
 insert:				/*insert   语句的语法解析树*/
-    INSERT INTO ID VALUES LBRACE value value_list RBRACE SEMICOLON 
+    INSERT INTO ID VALUES record record_list SEMICOLON 
 		{
 			// CONTEXT->values[CONTEXT->value_length++] = *$6;
 
@@ -294,12 +296,23 @@ insert:				/*insert   语句的语法解析树*/
 			// for(i = 0; i < CONTEXT->value_length; i++){
 			// 	CONTEXT->ssql->sstr.insertion.values[i] = CONTEXT->values[i];
       // }
-			inserts_init(&CONTEXT->ssql->sstr.insertion, $3, CONTEXT->values, CONTEXT->value_length);
+			inserts_init(&CONTEXT->ssql->sstr.insertion, $3, CONTEXT->records, CONTEXT->record_length);
 
       //临时变量清零
       CONTEXT->value_length=0;
+      CONTEXT->record_length=0;
     }
+    
+record_list:
+    /* empty */
+    | COMMA record record_list
 
+record:
+    LBRACE value value_list RBRACE {
+        record_init(&CONTEXT->records[CONTEXT->record_length++],CONTEXT->values,CONTEXT->value_length);
+        CONTEXT->value_length = 0;
+    }
+    
 value_list:
     /* empty */
     | COMMA value value_list  { 

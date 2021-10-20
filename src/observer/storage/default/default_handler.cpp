@@ -148,14 +148,44 @@ RC DefaultHandler::drop_index(Trx *trx, const char *dbname, const char *relation
   return RC::GENERIC_ERROR;
 }
 
+
 RC DefaultHandler::insert_record(Trx *trx, const char *dbname, const char *relation_name, int value_num, const Value *values) {
   Table *table = find_table(dbname, relation_name);
   if (nullptr == table) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  return table->insert_record(trx, value_num, values);
+  return table->insert_record(trx, value_num, values,nullptr);
 }
+
+
+RC DefaultHandler::insert_many_records(Trx *trx, const char *dbname, const char *relation_name, int record_num, const Insert_Record *records)
+{
+    RC rc = RC::SUCCESS;
+    RID record_ids[record_num];
+
+    Table *table = find_table(dbname, relation_name);
+    if (nullptr == table)
+    {
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+
+    for (size_t i = 0; i < record_num; i++)
+    {
+        // Table 的insert操作已经有回滚操作了
+        // rc = insert_record(trx, dbname, relation_name, records[i].value_num, records[i].values + i);
+        rc= table->insert_record(trx, records[i].value_num, records[i].values,&record_ids[i]);
+        if(rc!=RC::SUCCESS){
+            // 对所有已插入数据进行回滚
+          for (size_t j = 0; j < i; j++) {
+            table->rollback_insert(trx, record_ids[j]);
+          }
+          break;
+        }
+    }
+    return rc;
+}
+
 RC DefaultHandler::delete_record(Trx *trx, const char *dbname, const char *relation_name,
                                  int condition_num, const Condition *conditions, int *deleted_count) {
   Table *table = find_table(dbname, relation_name);
