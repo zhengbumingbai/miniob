@@ -90,6 +90,9 @@ public:
    */
   RC drop_table(const char *dbname, const char *relation_name);
 
+// zt 自己封装一层 调用他的或者不调用它的都可以
+RC create_index(Trx *trx, const char *dbname, const CreateIndex *create_index);
+
   /**
    * 该函数在关系relName的属性attrName上创建名为indexName的索引。
    * 函数首先检查在标记属性上是否已经存在一个索引，

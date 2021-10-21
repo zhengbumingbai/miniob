@@ -47,7 +47,7 @@ void record_init(Insert_Record *record, Value *value, int value_length)
 {
     LOG_DEBUG("初始化一个记录");
     record->value_num = value_length;
-    for (size_t i = 0; i < value_length; i++)
+    for (int i = 0; i < value_length; i++)
     {
         
         record->values[i].type = value[i].type;
@@ -92,6 +92,7 @@ void value_init_string(Value *value, const char *v) {
 
 bool DateVerify(int year, int month, int day)
 {
+    LOG_DEBUG("VERIFY YEAR: %d, MONTH: %d, DAY:%d ", year, month, day);
     if (year < 1970 || year > 2038 || month < 1 || month > 12 || day < 1 || day > 31)
     {
         return false;
@@ -130,28 +131,39 @@ bool DateVerify(int year, int month, int day)
 // 增加时间转化函数
 int str_to_time(const char *time_str)
 {
-    // std::time_t 
     struct tm tm_time;
     memset(&tm_time, 0, sizeof(struct tm));
-
-    // TODO 错误时间处理
-    // bool result = CheckDateValid(time_str);
+    char *temp_time = strdup(time_str);
 
     // unix time <0 表示 1970年以前 表示时间戳生成错误 ==> 时间字符串错误
-    time_t unixtime = INT32_MIN;
-    strptime(time_str, "%Y-%m-%d", &tm_time);
-    unixtime = mktime(&tm_time);
+    // 先校验是合法字符串再调UNIX时间戳生成
 
-    //年份是减去1900后的所以需要+1900 月份 0-11需要＋1 日期 1-31 不需要 +1 
-    LOG_DEBUG("year: %d month: %d day: %d", tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday);
-    bool result = DateVerify(tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday);
-    if(result) 
+    int str_len = strlen(temp_time);
+    int count = 0;
+    int time_numbers[3];
+    char *head = temp_time;
+    for (int i = 0; i <= str_len; i++)
+    {
+        if(temp_time[i]=='-' || temp_time[i]=='\0') {
+            temp_time[i] = '\0';
+            LOG_DEBUG("STRING: %s", head);
+            time_numbers[count] = atoi(head);
+            LOG_DEBUG("NUMBER: %d",atoi(head));
+            head = &(temp_time[i+1]);
+            count++;
+        }
+    }
+
+    free(temp_time);
+
+    bool result = DateVerify(time_numbers[0], time_numbers[1], time_numbers[2]);
+    if(result) {
+        strptime(time_str, "%Y-%m-%d", &tm_time);
+        int unixtime = mktime(&tm_time);
         return unixtime;
+    }
     else
         return INT32_MIN;
-    // printf("converted to %ld", unixtime);
-
-    // return unixtime;
 }
 
 // 将字符串转化为int存储
@@ -266,7 +278,7 @@ void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record rec
 }
 
 
-// 增加recoed的销毁
+// zt 增加recoed的销毁
 void inserts_destroy(Inserts *inserts) {
   free(inserts->relation_name);
   inserts->relation_name = nullptr;
@@ -352,19 +364,37 @@ void drop_table_destroy(DropTable *drop_table) {
 }
 
 void create_index_init(CreateIndex *create_index, const char *index_name, 
-                       const char *relation_name, const char *attr_name) {
+                       const char *relation_name) {
   create_index->index_name = strdup(index_name);
   create_index->relation_name = strdup(relation_name);
-  create_index->attribute_name = strdup(attr_name);
 }
+
+// zt 新增索引列名存储 支持多列索引
+void create_index_attr_init(CreateIndex *create_index,const char *attr) {
+    LOG_DEBUG("记录 列名");
+    *(create_index->attribute_name + create_index->attribute_length) = strdup(attr);
+    create_index->attribute_length++;
+}
+
+// 新增unique标志位实现
+void create_index_unique_init(CreateIndex *create_index){
+    LOG_DEBUG("记录 UNIQUE");
+    create_index->isUnique = 1;
+}
+// zt 修改索引结构体的内存释放
 void create_index_destroy(CreateIndex *create_index) {
   free(create_index->index_name);
   free(create_index->relation_name);
-  free(create_index->attribute_name);
-
   create_index->index_name = nullptr;
   create_index->relation_name = nullptr;
-  create_index->attribute_name = nullptr;
+
+  for (int i = 0; i < create_index->attribute_length; i++)
+  {
+      free(create_index->attribute_name + i);
+      *(create_index->attribute_name + i) = nullptr;
+  }
+  create_index->isUnique = 0;
+  create_index->attribute_length = 0;
 }
 
 void drop_index_init(DropIndex *drop_index, const char *index_name) {

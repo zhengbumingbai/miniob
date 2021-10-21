@@ -224,8 +224,9 @@ void DefaultStorageStage::handle_event(StageEvent *event)
     case SCF_CREATE_INDEX:
     {
         const CreateIndex &create_index = sql->sstr.create_index;
-        rc = handler_->create_index(current_trx, current_db, create_index.relation_name,
-                                    create_index.index_name, create_index.attribute_name);
+        rc = handler_->create_index(current_trx,current_db, &create_index);
+        // rc = handler_->create_index(current_trx, current_db, create_index.relation_name,
+        //                             create_index.index_name, create_index.attribute_name);
         snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
     break;
@@ -346,6 +347,7 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
         std::string &file_value = file_values[i];
         common::strip(file_value);
 
+        // TODO zt 从文件导入 还没处理Date类型
         switch (field->type())
         {
         case INTS:

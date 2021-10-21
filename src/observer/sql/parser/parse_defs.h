@@ -122,8 +122,10 @@ typedef struct {
 // struct of create_index
 typedef struct {
   char *index_name;      // Index name
+  int isUnique;         // zt 新增unique标志位
+  int attribute_length;  // zt 属性个数
   char *relation_name;   // Relation name
-  char *attribute_name;  // Attribute name
+  char *attribute_name[];  // Attribute name zt 被修改为指针数组
 } CreateIndex;
 
 // struct of  drop_index
@@ -239,7 +241,12 @@ void drop_table_init(DropTable *drop_table, const char *relation_name);
 void drop_table_destroy(DropTable *drop_table);
 
 void create_index_init(
-    CreateIndex *create_index, const char *index_name, const char *relation_name, const char *attr_name);
+    CreateIndex *create_index, const char *index_name, const char *relation_name);
+    // zt 新增索引列名存储 支持多列索引
+void create_index_attr_init(CreateIndex *create_index,const char *attr) ;
+
+    // zt 新增初始化unique 标志位
+void create_index_unique_init(CreateIndex *create_index);
 void create_index_destroy(CreateIndex *create_index);
 
 void drop_index_init(DropIndex *drop_index, const char *index_name);

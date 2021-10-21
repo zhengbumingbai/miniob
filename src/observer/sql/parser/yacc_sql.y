@@ -105,6 +105,7 @@ ParserContext *get_context(yyscan_t scanner)
         LE
         GE
         NE
+        UNIQUE //zt UNIQUE
 
 %union {
   struct _Attr *attr;
@@ -213,12 +214,28 @@ desc_table:
     ;
 
 create_index:		/*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE SEMICOLON 
+    CREATE index_type INDEX ID ON ID LBRACE index_attr_id id_list RBRACE SEMICOLON 
 		{
 			CONTEXT->ssql->flag = SCF_CREATE_INDEX;//"create_index";
-			create_index_init(&CONTEXT->ssql->sstr.create_index, $3, $5, $7);
+			create_index_init(&CONTEXT->ssql->sstr.create_index, $4, $6);
 		}
     ;
+
+index_type:
+    /* empty */
+    | UNIQUE {
+        create_index_unique_init(&CONTEXT->ssql->sstr.create_index);
+    }
+
+id_list:
+    /* empty */
+    | COMMA index_attr_id id_list
+
+index_attr_id:
+    ID {
+        create_index_attr_init(&CONTEXT->ssql->sstr.create_index,$1);
+    }
+
 
 drop_index:			/*drop index 语句的语法解析树*/
     DROP INDEX ID  SEMICOLON 
