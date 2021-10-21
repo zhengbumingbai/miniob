@@ -347,6 +347,7 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
     const Value &value = values[i];
     // zt 校验UNIX时间戳是否合法
     if (value.type == DATES && *(int *)value.data == INT32_MIN) {
+        LOG_DEBUG("INSERT DATES TYPE INVAILD");
       return RC::RECORD;
     }
 
