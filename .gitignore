@@ -38,4 +38,5 @@ etc/observer_debug.ini
 
 observer.log*
 observer_debug.ini
+my_local_test
 miniob

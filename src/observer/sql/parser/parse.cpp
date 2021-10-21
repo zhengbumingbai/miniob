@@ -50,9 +50,9 @@ void record_init(Insert_Record *record, Value *value, int value_length)
     for (size_t i = 0; i < value_length; i++)
     {
         
-        record->values[i].type = value->type;
+        record->values[i].type = value[i].type;
 
-        switch (value->type)
+        switch (value[i].type)
         {
         case INTS:
         case FLOATS:
@@ -60,13 +60,13 @@ void record_init(Insert_Record *record, Value *value, int value_length)
         case DATES:
         // 当前默认都是四字节
         record->values[i].data = malloc(sizeof(int));
-        memcpy(record->values[i].data, value->data, sizeof(int));
+        memcpy(record->values[i].data, value[i].data, sizeof(int));
         break;
         default:
             break;
         }
 
-        LOG_DEBUG("value-type: %d data: %d" , value->type,*(int *)(value->data));
+        LOG_DEBUG("value-type: %d data: %d" , value[i].type,*(int *)(value[i].data));
     }
 
 }
