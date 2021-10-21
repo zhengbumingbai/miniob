@@ -302,8 +302,8 @@ RC Table::insert_record(Trx *trx, Record *record) {
   }
   return rc;
 }
-RC Table::insert_record(Trx *trx, int value_num, const Value *values,
-                        RID *rid) {
+RC Table::insert_record(Trx *trx, int value_num, const Value *values, RID *rid)
+{
   if (value_num <= 0 || nullptr == values) {
     LOG_ERROR("Invalid argument. value num=%d, values=%p", value_num, values);
     return RC::INVALID_ARGUMENT;
@@ -320,8 +320,10 @@ RC Table::insert_record(Trx *trx, int value_num, const Value *values,
   record.data = record_data;
   // record.valid = true;
   rc = insert_record(trx, &record);
+
   //   通过传指针 记录下rid
-  if (rid) {
+  if (rid)
+  {
     *rid = record.rid;
   }
 
@@ -343,10 +345,11 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
-    // 校验UNIX时间戳是否合法
+    // zt 校验UNIX时间戳是否合法
     if (value.type == DATES && *(int *)value.data == INT32_MIN) {
       return RC::RECORD;
     }
+
     if (field->type() != value.type) {
       LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
                 field->name(), field->type(), value.type);
@@ -387,7 +390,6 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
     }
   }
 
-// zt 增加元数据校验
   if (attribute_loc == -1) {
     LOG_ERROR("Attribute not exists. attribute name=%s", attribute_name);
     return RC::SCHEMA_FIELD_NOT_EXIST;
@@ -580,7 +582,6 @@ static RC insert_index_record_reader_adapter(Record *record, void *context) {
 
 RC Table::create_index(Trx *trx, const char *index_name,
                        const char *attribute_name) {
-    // zt 都是元数据校验
   if (index_name == nullptr || common::is_blank(index_name) ||
       attribute_name == nullptr || common::is_blank(attribute_name)) {
     return RC::INVALID_ARGUMENT;
@@ -757,23 +758,42 @@ RC Table::update_record(Trx *trx, Record *old_record, Record *record) {
   rc = update_entry_of_indexes(old_record->data, record->data, record->rid,
                                false);
   if (rc != RC::SUCCESS) {
-    RC rc2 = delete_entry_of_indexes(record->data, record->rid, true);
-    rc2 = delete_entry_of_indexes(old_record->data, record->rid, true);
-    // 暂不处理rc2，删除旧索引以及新索引错误的情况，因为可能在update索引过程中，旧索引已经删除，新索引还没插入。这需要判断更详细的状态码。
+    LOG_ERROR(
+        "Update index failed when update operation. table name=%s, rc=%d:%s",
+        table_meta_.name(), rc, strrc(rc));
+    RC rc2 = record_handler_->update_record(old_record);
+    if (rc2 != RC::SUCCESS) {
+      LOG_ERROR("Rollback record failed. table name=%s, rc=%d:%s",
+                table_meta_.name(), rc, strrc(rc));
+      RC rc3 = record_handler_->delete_record(&old_record->rid);
+      if (rc3 != RC::SUCCESS) {
+        LOG_PANIC(
+            "Failed to delete record data when update record failed and "
+            "rollback old record failed. table name=%s, rc=%d:%s",
+            name(), rc3, strrc(rc3));
+      }
+      return rc;
+    }
+
+    delete_entry_of_indexes(record->data, record->rid, true);
+    delete_entry_of_indexes(old_record->data, old_record->rid, true);
+    // 暂不处理删除旧索引以及新索引错误的rc，因为可能在update索引过程中，旧索引已经删除，新索引还没插入。这需要判断更详细的状态码。
 
     // 因为update_record错误不会删改旧数据，所以rollback索引，插回旧索引
-    RC rc3 = insert_entry_of_indexes(old_record->data, record->rid);
-    if (rc3 != RC::SUCCESS) {
+    RC rc4 = insert_entry_of_indexes(old_record->data, old_record->rid);
+    if (rc4 != RC::SUCCESS) {
       LOG_PANIC(
           "Failed to rollback index data when update index entries failed. "
           "table name=%s, rc=%d:%s",
-          name(), rc3, strrc(rc3));
-      RC rc4 = record_handler_->delete_record(&record->rid);
-      if (rc4 != RC::SUCCESS) {
+          name(), rc4, strrc(rc4));
+      // 暂不处理
+      delete_entry_of_indexes(old_record->data, old_record->rid, true);
+      RC rc5 = record_handler_->delete_record(&old_record->rid);
+      if (rc5 != RC::SUCCESS) {
         LOG_PANIC(
             "Failed to delete record data when update index entries failed and "
             "rollback index entries failed. table name=%s, rc=%d:%s",
-            name(), rc4, strrc(rc4));
+            name(), rc5, strrc(rc5));
       }
     }
     return rc;
@@ -881,8 +901,10 @@ RC Table::update_entry_of_indexes(const char *old_record, const char *record,
   for (Index *index : indexes_) {
     rc = index->delete_entry(old_record, &rid);
     if (rc != RC::SUCCESS) {
-      if (rc != RC::RECORD_INVALID_KEY || !error_on_not_exists) {
+      if (rc != RC::RECORD_INVALID_KEY || error_on_not_exists) {
         break;
+      } else {
+        rc = RC::SUCCESS;
       }
     }
     rc = index->insert_entry(record, &rid);
@@ -901,6 +923,8 @@ RC Table::delete_entry_of_indexes(const char *record, const RID &rid,
     if (rc != RC::SUCCESS) {
       if (rc != RC::RECORD_INVALID_KEY || error_on_not_exists) {
         break;
+      } else {
+        rc = RC::SUCCESS;
       }
     }
   }
