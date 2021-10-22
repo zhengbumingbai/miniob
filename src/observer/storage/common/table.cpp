@@ -485,8 +485,9 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit,
 // zt 建索引时filter为 null，此处select条件过滤时执行的
   IndexScanner *index_scanner = find_index_for_scan(filter);
   if (index_scanner != nullptr) {
-    return scan_record_by_index(trx, index_scanner, filter, limit, context,
+    RC rc = scan_record_by_index(trx, index_scanner, filter, limit, context,
                                 record_reader);
+    if(rc == RC::RECORD_NO_MORE_IDX_IN_MEM || rc == RC::RECORD_EOF) return RC::SUCCESS;
   }
 
   RC rc = RC::SUCCESS;
