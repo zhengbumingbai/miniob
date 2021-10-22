@@ -27,12 +27,18 @@ public:
 
   virtual void to_string(std::ostream &os) const = 0;
   virtual int compare(const TupleValue &other) const = 0;
-private:
+  virtual void* get_value() const = 0;
+  AttrType type() const {
+    return type_;
+  }  
+protected:
+  AttrType type_;
 };
 
 class IntValue : public TupleValue {
 public:
   explicit IntValue(int value) : value_(value) {
+    type_ = AttrType::INTS;
   }
 
   void to_string(std::ostream &os) const override {
@@ -44,6 +50,10 @@ public:
     return value_ - int_other.value_;
   }
 
+  void* get_value() const override {
+    return (void*)&value_;
+  }
+
 private:
   int value_;
 };
@@ -51,6 +61,7 @@ private:
 class FloatValue : public TupleValue {
 public:
   explicit FloatValue(float value) : value_(value) {
+    type_ = AttrType::FLOATS;
   }
 
   void to_string(std::ostream &os) const override {
@@ -68,6 +79,10 @@ public:
     }
     return 0;
   }
+
+  void* get_value() const override {
+    return (void*)&value_;
+  }
 private:
   float value_;
 };
@@ -75,8 +90,10 @@ private:
 class StringValue : public TupleValue {
 public:
   StringValue(const char *value, int len) : value_(value, len){
+    type_ = AttrType::CHARS;
   }
   explicit StringValue(const char *value) : value_(value) {
+    type_ = AttrType::CHARS;
   }
 
   void to_string(std::ostream &os) const override {
@@ -86,6 +103,10 @@ public:
   int compare(const TupleValue &other) const override {
     const StringValue &string_other = (const StringValue &)other;
     return strcmp(value_.c_str(), string_other.value_.c_str());
+  }
+
+  void* get_value() const override {
+    return (void*)&value_;
   }
 private:
   std::string value_;

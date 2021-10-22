@@ -23,11 +23,20 @@ See the Mulan PSL v2 for more details. */
 #define MAX_ERROR_MESSAGE 20
 #define MAX_DATA 50
 
+//聚合类型
+typedef enum { AGGR_UNDEFINED, COUNT, AVG, MAX, MIN } AggrType;
+
 //属性结构体
 typedef struct {
   char *relation_name;   // relation name (may be NULL) 表名
   char *attribute_name;  // attribute name              属性名
 } RelAttr;
+
+typedef struct {
+  char *relation_name;   // relation name (may be NULL) 表名
+  char *attribute_name;  // attribute name              属性名
+  AggrType aggr_type; // 聚合类型
+} AggrAttr;
 
 typedef enum {
   EQUAL_TO,     //"="     0
@@ -68,6 +77,8 @@ typedef struct {
   char *    relations[MAX_NUM];     // relations in From clause
   size_t    condition_num;          // Length of conditions in Where clause
   Condition conditions[MAX_NUM];    // conditions in Where clause
+  AggrAttr  aggr_attr[MAX_NUM];     // attrs of aggregation
+  size_t    aggr_num;               // Length of aggregation
 } Selects;
 
 // struct of insert
@@ -176,6 +187,8 @@ typedef struct Query {
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
+void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op, const char *relation_name, const char *attribute_name);
+void aggr_attr_destory(AggrAttr *aggr_attr);
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
@@ -196,6 +209,7 @@ void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
+void selects_append_aggr_attribute(Selects *selects, AggrAttr *aggr_attr);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num);

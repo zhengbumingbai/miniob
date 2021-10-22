@@ -48,3 +48,41 @@ RC SelectExeNode::execute(TupleSet &tuple_set) {
   TupleRecordConverter converter(table_, tuple_set);
   return table_->scan_record(trx_, &condition_filter, -1, (void *)&converter, record_reader);
 }
+
+SelectAggregationExeNode::SelectAggregationExeNode() : table_(nullptr) {
+}
+
+SelectAggregationExeNode::~SelectAggregationExeNode() {
+  for (AggregationConditionFilter * &filter : condition_filters_) {
+    delete filter;
+  }
+  condition_filters_.clear();
+}
+
+RC
+SelectAggregationExeNode::init(Trx *trx, Table *table, TupleSchema &&tuple_schema, std::vector<AggregationConditionFilter *> &&condition_filters) {
+  trx_ = trx;
+  table_ = table;
+  tuple_schema_ = tuple_schema;
+  condition_filters_ = std::move(condition_filters);
+  return RC::SUCCESS;
+}
+
+void aggregation_record_reader(const char *data, void *context) {
+  AggregationRecordConverter *converter = (AggregationRecordConverter *)context;
+  converter->read_record(data);
+}
+
+RC SelectAggregationExeNode::execute(TupleSet &tuple_set) {
+  CompositeConditionFilter condition_filter;
+  condition_filter.init((const ConditionFilter **)condition_filters_.data(), condition_filters_.size());
+
+  tuple_set.clear();
+  tuple_set.set_schema(tuple_schema_);
+  AggregationRecordConverter converter(table_, tuple_set, aggr_attrs_);
+  RC rc = table_->scan_record(trx_, &condition_filter, -1, (void *)&converter, aggregation_record_reader);
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
+  return converter.final_add_record();
+}

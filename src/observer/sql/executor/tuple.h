@@ -84,6 +84,36 @@ private:
   std::string field_name_;
 };
 
+class AggrField {
+public:
+  AggrField(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name) :
+          aggr_type_(aggr_type), type_(type), table_name_(table_name), field_name_(field_name){
+  }
+
+  AggrType  aggr_type() const{
+    return aggr_type_;
+  }
+
+  AttrType  type() const{
+    return type_;
+  }
+
+  const char *table_name() const {
+    return table_name_.c_str();
+  }
+
+  const char *field_name() const {
+    return field_name_.c_str();
+  }
+
+  std::string to_string() const;
+private:
+  AttrType  type_;
+  AggrType aggr_type_;
+  std::string table_name_;
+  std::string field_name_;
+};
+
 class TupleSchema {
 public:
   TupleSchema() = default;
@@ -91,11 +121,18 @@ public:
 
   void add(AttrType type, const char *table_name, const char *field_name);
   void add_if_not_exists(AttrType type, const char *table_name, const char *field_name);
+
+  void add_aggr(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name);
+  void add_aggr_if_not_exists(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name);
   // void merge(const TupleSchema &other);
   void append(const TupleSchema &other);
 
   const std::vector<TupleField> &fields() const {
     return fields_;
+  }
+
+  const std::vector<AggrField> &aggr_fields() const {
+    return aggr_fields_;
   }
 
   const TupleField &field(int index) const {
@@ -112,6 +149,7 @@ public:
   static void from_table(const Table *table, TupleSchema &schema);
 private:
   std::vector<TupleField> fields_;
+  std::vector<AggrField> aggr_fields_;
 };
 
 class TupleSet {
@@ -130,13 +168,18 @@ public:
 
   void add(Tuple && tuple);
 
+  void replace_aggr_tuple(int i, Tuple && tuple);
+
+  void add_aggr_tuple(Tuple && tuple);
+
   void clear();
 
   bool is_empty() const;
   int size() const;
   const Tuple &get(int index) const;
+  const Tuple &get_aggr(int index) const;
   const std::vector<Tuple> &tuples() const;
-
+  const std::vector<Tuple> &aggr_tuples() const;
   void print(std::ostream &os) const;
 public:
   const TupleSchema &schema() const {
@@ -144,6 +187,7 @@ public:
   }
 private:
   std::vector<Tuple> tuples_;
+  std::vector<Tuple> aggr_tuples_;
   TupleSchema schema_;
 };
 
@@ -155,6 +199,21 @@ public:
 private:
   Table *table_;
   TupleSet &tuple_set_;
+};
+
+class AggregationRecordConverter {
+public:
+  AggregationRecordConverter(Table *table, TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
+
+  void read_record(const char *record);
+
+  RC final_add_record();
+private:
+  Table *table_;
+  TupleSet &tuple_set_;
+  std::vector<const AggrAttr *> &aggr_attrs_;
+  std::vector<double> aggr_results_;
+  std::vector<int> line_counts_;
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_TUPLE_H_

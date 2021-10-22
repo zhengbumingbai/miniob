@@ -46,7 +46,7 @@ AttrType attr_type_from_string(const char *s) {
   return UNDEFINED;
 }
 
-FieldMeta::FieldMeta() : attr_type_(AttrType::UNDEFINED), attr_offset_(-1), attr_len_(0), visible_(false) {
+FieldMeta::FieldMeta() : attr_type_(UNDEFINED), attr_offset_(-1), attr_len_(0), visible_(false) {
 }
 
 RC FieldMeta::init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible) {
@@ -55,7 +55,7 @@ RC FieldMeta::init(const char *name, AttrType attr_type, int attr_offset, int at
     return RC::INVALID_ARGUMENT;
   }
 
-  if (AttrType::UNDEFINED == attr_type || attr_offset < 0 || attr_len <= 0) {
+  if (UNDEFINED == attr_type || attr_offset < 0 || attr_len <= 0) {
     LOG_WARN("Invalid argument. name=%s, attr_type=%d, attr_offset=%d, attr_len=%d",
       name, attr_type, attr_offset, attr_len);
     return RC::INVALID_ARGUMENT;

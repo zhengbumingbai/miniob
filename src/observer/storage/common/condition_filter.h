@@ -70,6 +70,36 @@ private:
   CompOp   comp_op_ = NO_OP;
 };
 
+class AggregationConditionFilter : public ConditionFilter {
+public:
+  AggregationConditionFilter();
+  virtual ~AggregationConditionFilter();
+
+  RC init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op);
+  RC init(Table &table, const Condition &condition);
+
+  virtual bool filter(const Record &rec) const;
+
+public:
+  const ConDesc &left() const {
+    return left_;
+  }
+
+  const ConDesc &right() const {
+    return right_;
+  }
+
+  CompOp comp_op() const {
+    return comp_op_;
+  }
+
+private:
+  ConDesc  left_;
+  ConDesc  right_;
+  AttrType attr_type_ = UNDEFINED;
+  CompOp   comp_op_ = NO_OP;
+};
+
 class CompositeConditionFilter : public ConditionFilter {
 public:
   CompositeConditionFilter() = default;

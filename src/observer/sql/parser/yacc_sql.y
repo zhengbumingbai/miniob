@@ -102,6 +102,10 @@ ParserContext *get_context(yyscan_t scanner)
         LE
         GE
         NE
+		AGGR_COUNT
+		AGGR_MAX
+		AGGR_MIN
+		AGGR_AVG
 
 %union {
   struct _Attr *attr;
@@ -369,7 +373,79 @@ select_attr:
 			relation_attr_init(&attr, $1, $3);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
+	| aggr_list {
+
+	}
     ;
+
+aggr_list:
+	/* empty */
+	| COMMA aggr_list {
+
+	}
+	| AGGR_COUNT LBRACE STAR RBRACE aggr_list {
+			AggrAttr attr;
+			/*第二个参数refer to AggrType */
+			aggr_attr_init(&attr, 1, NULL, "*");
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_COUNT LBRACE ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 1, NULL, $3);
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_COUNT LBRACE ID DOT ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 1, $3, $5);
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MAX LBRACE STAR RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 3, NULL, "*");
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MAX LBRACE ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 3, NULL, $3);
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MAX LBRACE ID DOT ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 3, $3, $5);
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE STAR RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 4, NULL, "*");
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 4, NULL, $3);
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE ID DOT ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 4, $3, $5);
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_AVG LBRACE STAR RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 2, NULL, "*");
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_AVG LBRACE ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 2, NULL, $3);
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_AVG LBRACE ID DOT ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 2, $3, $5);
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+    ;
+
 attr_list:
     /* empty */
     | COMMA ID attr_list {

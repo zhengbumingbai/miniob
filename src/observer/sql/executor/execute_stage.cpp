@@ -36,6 +36,7 @@ See the Mulan PSL v2 for more details. */
 using namespace common;
 
 RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node);
+RC create_selection_aggregation_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectAggregationExeNode &select_node);
 
 //! Constructor
 ExecuteStage::ExecuteStage(const char *tag) : Stage(tag) {}
@@ -255,16 +256,24 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
 
     // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
-    std::vector<SelectExeNode *> select_nodes;
+    std::vector<ExecutionNode *> select_nodes;
     for (size_t i = 0; i < selects.relation_num; i++)
     {
         const char *table_name = selects.relations[i];
-        SelectExeNode *select_node = new SelectExeNode;
-        rc = create_selection_executor(trx, selects, db, table_name, *select_node);
+        ExecutionNode* select_node;
+        if (selects.aggr_num > 0) {
+            select_node = new SelectAggregationExeNode;
+            SelectAggregationExeNode* select_node_in = dynamic_cast<SelectAggregationExeNode*>(select_node);
+            rc = create_selection_aggregation_executor(trx, selects, db, table_name, *select_node_in);
+        } else {
+            select_node = new SelectExeNode;
+            SelectExeNode* select_node_in = dynamic_cast<SelectExeNode*>(select_node);
+            rc = create_selection_executor(trx, selects, db, table_name, *select_node_in);
+        }
         if (rc != RC::SUCCESS)
         {
             delete select_node;
-            for (SelectExeNode *&tmp_node : select_nodes)
+            for (ExecutionNode *&tmp_node : select_nodes)
             {
                 delete tmp_node;
             }
@@ -282,13 +291,13 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     }
 
     std::vector<TupleSet> tuple_sets;
-    for (SelectExeNode *&node : select_nodes)
+    for (ExecutionNode *&node : select_nodes)
     {
         TupleSet tuple_set;
         rc = node->execute(tuple_set);
         if (rc != RC::SUCCESS)
         {
-            for (SelectExeNode *&tmp_node : select_nodes)
+            for (ExecutionNode *&tmp_node : select_nodes)
             {
                 delete tmp_node;
             }
@@ -304,8 +313,8 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     std::stringstream ss;
     if (tuple_sets.size() > 1)
     {
-        // 本次查询了多张表，需要做join操作
-        LOG_ERROR("Have not implement join.");
+        // 本次查询了多张表，需要做笛卡尔积
+        LOG_ERROR("Have not implement multi tables query.");
         return RC::GENERIC_ERROR;
     }
     else
@@ -314,7 +323,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         tuple_sets.front().print(ss);
     }
 
-    for (SelectExeNode *&tmp_node : select_nodes)
+    for (ExecutionNode *&tmp_node : select_nodes)
     {
         delete tmp_node;
     }
@@ -344,6 +353,100 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
 
     schema.add_if_not_exists(field_meta->type(), table->name(), field_meta->name());
     return RC::SUCCESS;
+}
+
+static RC schema_add_aggr_field(AggrType aggr_type, Table *table, const char *field_name, TupleSchema &schema)
+{   
+    if (0 == strcmp("*", field_name)) {
+        if (aggr_type == AggrType::COUNT) {
+            schema.add_aggr(aggr_type, AttrType::INTS, table->name(), field_name);
+            return RC::SUCCESS;
+        } else {
+            LOG_DEBUG("AVG MIN MAX not support * field");
+            return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+        
+    }
+    const FieldMeta *field_meta = table->table_meta().field(field_name);
+    if (nullptr == field_meta)
+    {
+        LOG_WARN("No such field in aggregation. %s.%s", table->name(), field_name);
+        return RC::SCHEMA_FIELD_MISSING;
+    }
+    if (aggr_type != AggrType::COUNT) {
+        if (field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS) {
+            LOG_WARN("Field type in aggregation not support aggregation op of avg, max, min. %s.%s", table->name(), field_meta->name());
+            return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+        schema.add_aggr(aggr_type, AttrType::FLOATS, table->name(), field_meta->name());
+    } else {
+        schema.add_aggr(aggr_type, AttrType::INTS, table->name(), field_meta->name());
+    }
+    
+    return RC::SUCCESS;
+}
+
+RC create_selection_aggregation_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectAggregationExeNode &select_node) {
+    // 列出跟这张表关联的Attr
+    TupleSchema schema;
+    Table *table = DefaultHandler::get_default().find_table(db, table_name);
+    if (nullptr == table)
+    {
+        LOG_WARN("No such table [%s] in db [%s]", table_name, db);
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+    const TableMeta &table_meta = table->table_meta();
+
+    if (selects.aggr_num > 0) {
+        for (int i=0; i < selects.aggr_num; i++) {
+            const AggrAttr &attr = selects.aggr_attr[i];
+            const FieldMeta *field = table_meta.field(attr.attribute_name);
+            // 如果聚合表达式是*
+            if (0 == strcmp("*", attr.attribute_name)) {
+                select_node.add_aggr_attr(&attr);
+                schema.add_aggr(attr.aggr_type, AttrType::INTS, table_name, attr.attribute_name);
+                continue;
+            }
+            if (nullptr == field)
+            {
+                LOG_WARN("No such field in aggregation. %s.%s", table->name(), field);
+                return RC::SCHEMA_FIELD_MISSING;
+            }
+            if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
+                select_node.add_aggr_attr(&attr);
+                schema.add_aggr(attr.aggr_type, field->type(), table_name, attr.attribute_name);
+            } else {
+                return RC::SCHEMA_TABLE_NAME_ILLEGAL;
+            }
+        }
+    }
+    // 找出仅与此表相关的过滤条件, 或者都是值的过滤条件
+    std::vector<AggregationConditionFilter *> condition_filters;
+    for (size_t i = 0; i < selects.condition_num; i++)
+    {
+        const Condition &condition = selects.conditions[i];
+        if ((condition.left_is_attr == 0 && condition.right_is_attr == 0) ||                                                                         // 两边都是值
+            (condition.left_is_attr == 1 && condition.right_is_attr == 0 && match_table(selects, condition.left_attr.relation_name, table_name)) ||  // 左边是属性右边是值
+            (condition.left_is_attr == 0 && condition.right_is_attr == 1 && match_table(selects, condition.right_attr.relation_name, table_name)) || // 左边是值，右边是属性名
+            (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
+             match_table(selects, condition.left_attr.relation_name, table_name) && match_table(selects, condition.right_attr.relation_name, table_name)) // 左右都是属性名，并且表名都符合
+        )
+        {
+            AggregationConditionFilter *condition_filter = new AggregationConditionFilter();
+            RC rc = condition_filter->init(*table, condition);
+            if (rc != RC::SUCCESS)
+            {
+                delete condition_filter;
+                for (AggregationConditionFilter *&filter : condition_filters)
+                {
+                    delete filter;
+                }
+                return rc;
+            }
+            condition_filters.push_back(condition_filter);
+        }
+    }
+    return select_node.init(trx, table, std::move(schema), std::move(condition_filters));
 }
 
 // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点

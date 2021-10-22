@@ -21,6 +21,7 @@ class DiskBufferPool;
 class RecordFileHandler;
 class ConditionFilter;
 class DefaultConditionFilter;
+class AggregationConditionFilter;
 struct Record;
 struct RID;
 class Index;
@@ -77,6 +78,7 @@ private:
   RC scan_record_by_index(Trx *trx, IndexScanner *scanner, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));
   IndexScanner *find_index_for_scan(const ConditionFilter *filter);
   IndexScanner *find_index_for_scan(const DefaultConditionFilter &filter);
+  IndexScanner *find_index_for_scan(const AggregationConditionFilter &filter);
 
   RC insert_record(Trx *trx, Record *record);
   RC delete_record(Trx *trx, Record *record);
