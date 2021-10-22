@@ -29,11 +29,13 @@ class IndexMeta {
 public:
   IndexMeta() = default;
 
-  RC init(const char *name, const FieldMeta &field);
+    // zt 修改初始化函数
+  RC init(const char *name, const FieldMeta &field,int isUnique = 0);
 
 public:
   const char *name() const;
   const char *field() const;
+  const int isUnique() const;
 
   void desc(std::ostream &os) const;
 public:
@@ -43,5 +45,7 @@ public:
 private:
   std::string       name_;
   std::string       field_;
+//   私有的 不允许修改
+  int isUnique_;  //zt 新增关键字
 };
 #endif // __OBSERVER_STORAGE_COMMON_INDEX_META_H__

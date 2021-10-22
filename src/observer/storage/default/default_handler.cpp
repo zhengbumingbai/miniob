@@ -147,9 +147,16 @@ RC DefaultHandler::create_index(Trx *trx, const char *dbname,const CreateIndex *
     LOG_DEBUG("Create Index is Unique: %d",isUnique);
     for (int i = 0; i < create_index->attribute_length; i++)
     {
+        // printf("Create Index Attr name: %s",create_index->attribute_name[i]);
         LOG_DEBUG("Create Index Attr name: %s",create_index->attribute_name[i]);
     }
-    
+
+    // TODO 实现唯一索引与多列
+    Table *table = find_table(dbname, table_name);
+    if (nullptr == table) {
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+    return table->create_index(trx, index_name, create_index->attribute_name[0],isUnique);
 }
 
 RC DefaultHandler::create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, const char *attribute_name) {

@@ -482,6 +482,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit,
     limit = INT_MAX;
   }
 
+// zt 建索引时filter为 null，此处select条件过滤时执行的
   IndexScanner *index_scanner = find_index_for_scan(filter);
   if (index_scanner != nullptr) {
     return scan_record_by_index(trx, index_scanner, filter, limit, context,
@@ -497,6 +498,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit,
     return rc;
   }
 
+    //zt 执行逐条查输入
   int record_count = 0;
   Record record;
   rc = scanner.get_first_record(&record);
@@ -582,7 +584,7 @@ static RC insert_index_record_reader_adapter(Record *record, void *context) {
 }
 
 RC Table::create_index(Trx *trx, const char *index_name,
-                       const char *attribute_name) {
+                       const char *attribute_name,int isUnique) {
   if (index_name == nullptr || common::is_blank(index_name) ||
       attribute_name == nullptr || common::is_blank(attribute_name)) {
     return RC::INVALID_ARGUMENT;
@@ -597,8 +599,9 @@ RC Table::create_index(Trx *trx, const char *index_name,
     return RC::SCHEMA_FIELD_MISSING;
   }
 
+    // zt 初始化索引元信息 增加uniuqe 字段
   IndexMeta new_index_meta;
-  RC rc = new_index_meta.init(index_name, *field_meta);
+  RC rc = new_index_meta.init(index_name, *field_meta, isUnique);
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -616,6 +619,7 @@ RC Table::create_index(Trx *trx, const char *index_name,
   }
 
   // 遍历当前的所有数据，插入这个索引
+// zt  只需要修改索引插入的适配器 函数指针指向的函数
   IndexInserter index_inserter(index);
   rc = scan_record(trx, nullptr, -1, &index_inserter,
                    insert_index_record_reader_adapter);
