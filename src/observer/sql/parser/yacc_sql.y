@@ -16,7 +16,9 @@ typedef struct ParserContext {
   size_t condition_length;
   size_t from_length;
   size_t value_length;
+  size_t record_length;
   Value values[MAX_NUM];
+  Insert_Record records[MAX_NUM];
   Condition conditions[MAX_NUM];
   CompOp comp;
 	char id[MAX_NUM];
@@ -83,6 +85,7 @@ ParserContext *get_context(yyscan_t scanner)
         INT_T
         STRING_T
         FLOAT_T
+        DATE_T
         HELP
         EXIT
         DOT //QUOTE
@@ -106,6 +109,7 @@ ParserContext *get_context(yyscan_t scanner)
 		AGGR_MAX
 		AGGR_MIN
 		AGGR_AVG
+        UNIQUE //zt UNIQUE
 
 %union {
   struct _Attr *attr;
@@ -120,6 +124,8 @@ ParserContext *get_context(yyscan_t scanner)
 %token <number> NUMBER
 %token <floats> FLOAT 
 %token <string> ID
+// 表示 DATE是一个字符串
+%token <string> DATE
 %token <string> PATH
 %token <string> SSS
 %token <string> STAR
@@ -212,12 +218,28 @@ desc_table:
     ;
 
 create_index:		/*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE SEMICOLON 
+    CREATE index_type INDEX ID ON ID LBRACE index_attr_id id_list RBRACE SEMICOLON 
 		{
 			CONTEXT->ssql->flag = SCF_CREATE_INDEX;//"create_index";
-			create_index_init(&CONTEXT->ssql->sstr.create_index, $3, $5, $7);
+			create_index_init(&CONTEXT->ssql->sstr.create_index, $4, $6);
 		}
     ;
+
+index_type:
+    /* empty */
+    | UNIQUE {
+        create_index_unique_init(&CONTEXT->ssql->sstr.create_index);
+    }
+
+id_list:
+    /* empty */
+    | COMMA index_attr_id id_list
+
+index_attr_id:
+    ID {
+        create_index_attr_init(&CONTEXT->ssql->sstr.create_index,$1);
+    }
+
 
 drop_index:			/*drop index 语句的语法解析树*/
     DROP INDEX ID  SEMICOLON 
@@ -272,6 +294,8 @@ type:
 	INT_T { $$=INTS; }
        | STRING_T { $$=CHARS; }
        | FLOAT_T { $$=FLOATS; }
+    //    新增DATE_T 属性的token
+       | DATE_T { $$=DATES; }
        ;
 ID_get:
 	ID 
@@ -283,7 +307,7 @@ ID_get:
 
 	
 insert:				/*insert   语句的语法解析树*/
-    INSERT INTO ID VALUES LBRACE value value_list RBRACE SEMICOLON 
+    INSERT INTO ID VALUES record record_list SEMICOLON 
 		{
 			// CONTEXT->values[CONTEXT->value_length++] = *$6;
 
@@ -293,12 +317,23 @@ insert:				/*insert   语句的语法解析树*/
 			// for(i = 0; i < CONTEXT->value_length; i++){
 			// 	CONTEXT->ssql->sstr.insertion.values[i] = CONTEXT->values[i];
       // }
-			inserts_init(&CONTEXT->ssql->sstr.insertion, $3, CONTEXT->values, CONTEXT->value_length);
+			inserts_init(&CONTEXT->ssql->sstr.insertion, $3, CONTEXT->records, CONTEXT->record_length);
 
       //临时变量清零
       CONTEXT->value_length=0;
+      CONTEXT->record_length=0;
     }
+    
+record_list:
+    /* empty */
+    | COMMA record record_list
 
+record:
+    LBRACE value value_list RBRACE {
+        record_init(&CONTEXT->records[CONTEXT->record_length++],CONTEXT->values,CONTEXT->value_length);
+        CONTEXT->value_length = 0;
+    }
+    
 value_list:
     /* empty */
     | COMMA value value_list  { 
@@ -315,6 +350,11 @@ value:
     |SSS {
 			$1 = substr($1,1,strlen($1)-2);
   		value_init_string(&CONTEXT->values[CONTEXT->value_length++], $1);
+		}
+        // 新增value类型 DATE的字符串处理
+    |DATE {
+			$1 = substr($1,1,strlen($1)-2);
+  		value_init_date(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
     ;
     

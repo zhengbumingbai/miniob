@@ -90,6 +90,9 @@ public:
    */
   RC drop_table(const char *dbname, const char *relation_name);
 
+// zt 自己封装一层 调用他的或者不调用它的都可以
+RC create_index(Trx *trx, const char *dbname, const CreateIndex *create_index);
+
   /**
    * 该函数在关系relName的属性attrName上创建名为indexName的索引。
    * 函数首先检查在标记属性上是否已经存在一个索引，
@@ -123,6 +126,18 @@ public:
    * @return
    */
   RC insert_record(Trx * trx, const char *dbname, const char *relation_name, int value_num, const Value *values);
+
+/**
+ * @brief  插入多条数据的实现，需要同时插入或者同时不插入
+ * @note   
+ * @param  *trx: 
+ * @param  *dbname: 
+ * @param  *relation_name: 表名
+ * @param  record_num: 记录数
+ * @param  *records: 记录数组的头指针
+ * @retval 
+ */
+  RC insert_many_records(Trx *trx, const char *dbname, const char *relation_name, int record_num, const Insert_Record *records);
 
   /**
    * 该函数用来删除relName表中所有满足指定条件的元组以及该元组对应的索引项。

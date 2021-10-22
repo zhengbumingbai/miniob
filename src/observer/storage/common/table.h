@@ -50,14 +50,15 @@ public:
    * @param base_dir 表所在的文件夹，表记录数据文件、索引数据文件存放位置
    */
   RC open(const char *meta_file, const char *base_dir);
-  
-  RC insert_record(Trx *trx, int value_num, const Value *values);
+
+  RC insert_record(Trx *trx, int value_num, const Value *values, RID *rid=nullptr);
   RC update_record(Trx *trx, const char *attribute_name, const Value *value, int condition_num, const Condition conditions[], int *updated_count);
   RC delete_record(Trx *trx, ConditionFilter *filter, int *deleted_count);
 
   RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, void (*record_reader)(const char *data, void *context));
 
-  RC create_index(Trx *trx, const char *index_name, const char *attribute_name);
+// zt 新增一个unique关键字，默认不开启 不需要修改原来的调用接口
+  RC create_index(Trx *trx, const char *index_name, const char *attribute_name,int isUnique = 0);
   RC destroy_table();
 
 public:

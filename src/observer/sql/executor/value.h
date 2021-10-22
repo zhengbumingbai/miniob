@@ -19,98 +19,140 @@ See the Mulan PSL v2 for more details. */
 
 #include <string>
 #include <ostream>
+#include "common/log/log.h"
 
-class TupleValue {
+class TupleValue
+{
 public:
-  TupleValue() = default;
-  virtual ~TupleValue() = default;
+    TupleValue() = default;
+    virtual ~TupleValue() = default;
 
-  virtual void to_string(std::ostream &os) const = 0;
-  virtual int compare(const TupleValue &other) const = 0;
-  virtual void* get_value() const = 0;
-  AttrType type() const {
-    return type_;
-  }  
-protected:
-  AttrType type_;
-};
-
-class IntValue : public TupleValue {
-public:
-  explicit IntValue(int value) : value_(value) {
-    type_ = AttrType::INTS;
-  }
-
-  void to_string(std::ostream &os) const override {
-    os << value_;
-  }
-
-  int compare(const TupleValue &other) const override {
-    const IntValue & int_other = (const IntValue &)other;
-    return value_ - int_other.value_;
-  }
-
-  void* get_value() const override {
-    return (void*)&value_;
-  }
+    virtual void to_string(std::ostream &os) const = 0;
+    virtual int compare(const TupleValue &other) const = 0;
 
 private:
-  int value_;
 };
 
-class FloatValue : public TupleValue {
+void unixTime2Str(int n, char strTime[], int bufLen);
+
+class DateValue : public TupleValue
+{
 public:
-  explicit FloatValue(float value) : value_(value) {
-    type_ = AttrType::FLOATS;
-  }
-
-  void to_string(std::ostream &os) const override {
-    os << value_;
-  }
-
-  int compare(const TupleValue &other) const override {
-    const FloatValue & float_other = (const FloatValue &)other;
-    float result = value_ - float_other.value_;
-    if (result > 0) { // 浮点数没有考虑精度问题
-      return 1;
+    explicit DateValue(int value) : value_(value)
+    {
     }
-    if (result < 0) {
-      return -1;
+
+    void to_string(std::ostream &os) const override
+    {
+        char str_time[50];
+        unixTime2Str(value_, str_time, 50);
+        os << std::string(str_time);
+        // LOG_DEBUG("date to string end");
     }
-    return 0;
-  }
 
-  void* get_value() const override {
-    return (void*)&value_;
-  }
+    int compare(const TupleValue &other) const override
+    {
+        const DateValue &int_other = (const DateValue &)other;
+        return value_ - int_other.value_;
+    }
+
 private:
-  float value_;
+    int value_;
 };
 
-class StringValue : public TupleValue {
+class IntValue : public TupleValue
+{
 public:
-  StringValue(const char *value, int len) : value_(value, len){
-    type_ = AttrType::CHARS;
-  }
-  explicit StringValue(const char *value) : value_(value) {
-    type_ = AttrType::CHARS;
-  }
+    explicit IntValue(int value) : value_(value)
+    {
+    }
 
-  void to_string(std::ostream &os) const override {
-    os << value_;
-  }
+    void to_string(std::ostream &os) const override
+    {
+        os << value_;
+    }
 
-  int compare(const TupleValue &other) const override {
-    const StringValue &string_other = (const StringValue &)other;
-    return strcmp(value_.c_str(), string_other.value_.c_str());
-  }
-
-  void* get_value() const override {
-    return (void*)&value_;
-  }
+    int compare(const TupleValue &other) const override
+    {
+        const IntValue &int_other = (const IntValue &)other;
+        return value_ - int_other.value_;
+    }
 private:
-  std::string value_;
+    int value_;
 };
 
+class FloatValue : public TupleValue
+{
+public:
+    explicit FloatValue(float value) : value_(value)
+    {
+    }
+
+    void to_string(std::ostream &os) const override
+    {
+        // 先保存两位小数 再转化为字符串处理
+      char buf[128];
+      sprintf(buf, "%.2f", value_);
+    //   std::string s(buf);
+      for (size_t i = 0; i < 128; i++) {
+        if (buf[i] == '.') {
+          // 最后一位
+          if (i + 2 < 128 && buf[i + 2] == '0') {
+            buf[i + 2] = '\0';
+
+            if (i + 1 < 128 && buf[i + 1] == '0') {
+              buf[i] = '\0';
+            }
+          }
+          break;
+        }
+    }
+
+    os << buf;
+    }
+
+    int compare(const TupleValue &other) const override
+    {
+        const FloatValue &float_other = (const FloatValue &)other;
+        float result = value_ - float_other.value_;
+        if (result > 0)
+        { // 浮点数没有考虑精度问题
+            return 1;
+        }
+        if (result < 0)
+        {
+            return -1;
+        }
+        return 0;
+    }
+
+private:
+    float value_;
+};
+
+class StringValue : public TupleValue
+{
+public:
+    StringValue(const char *value, int len) : value_(value, len)
+    {
+    }
+    explicit StringValue(const char *value) : value_(value)
+    {
+    }
+
+    void to_string(std::ostream &os) const override
+    {
+        os << value_;
+    }
+
+    int compare(const TupleValue &other) const override
+    {
+        const StringValue &string_other = (const StringValue &)other;
+        return strcmp(value_.c_str(), string_other.value_.c_str());
+    }
+
+private:
+    std::string value_;
+};
 
 #endif //__OBSERVER_SQL_EXECUTOR_VALUE_H_

@@ -29,7 +29,7 @@ RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, co
     return rc;
   }
 
-  rc = index_handler_.create(file_name, field_meta.type(), field_meta.len());
+  rc = index_handler_.create(file_name, field_meta.type(), field_meta.len(), index_meta.isUnique());
   if (RC::SUCCESS == rc) {
     inited_ = true;
   }

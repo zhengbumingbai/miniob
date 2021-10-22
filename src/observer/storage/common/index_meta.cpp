@@ -23,13 +23,15 @@ See the Mulan PSL v2 for more details. */
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_FIELD_NAME("field_name");
 
-RC IndexMeta::init(const char *name, const FieldMeta &field) {
+RC IndexMeta::init(const char *name, const FieldMeta &field,int isUnique) {
   if (nullptr == name || common::is_blank(name)) {
     return RC::INVALID_ARGUMENT;
   }
 
   name_ = name;
   field_ = field.name();
+//   初始化Unique
+  isUnique_  = isUnique;
   return RC::SUCCESS;
 }
 
@@ -68,7 +70,9 @@ const char *IndexMeta::name() const {
 const char *IndexMeta::field() const {
   return field_.c_str();
 }
-
+const int IndexMeta::isUnique() const{
+    return isUnique_;
+}
 void IndexMeta::desc(std::ostream &os) const {
   os << "index name=" << name_
       << ", field=" << field_;

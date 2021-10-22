@@ -49,7 +49,7 @@ typedef enum {
 } CompOp;
 
 //属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS } AttrType;
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
 
 //属性值
 typedef struct _Value {
@@ -81,12 +81,20 @@ typedef struct {
   size_t    aggr_num;               // Length of aggregation
 } Selects;
 
+// 新增recore类型
+typedef struct
+{
+    size_t value_num;      // Length of values
+    Value values[MAX_NUM]; // values to insert
+} Insert_Record;
+
 // struct of insert
 typedef struct {
   char *relation_name;    // Relation to insert into
-  size_t value_num;       // Length of values
-  Value values[MAX_NUM];  // values to insert
+  Insert_Record records[MAX_NUM]; // values to insert
+  size_t record_num;
 } Inserts;
+
 
 // struct of delete
 typedef struct {
@@ -125,8 +133,10 @@ typedef struct {
 // struct of create_index
 typedef struct {
   char *index_name;      // Index name
+  int isUnique;         // zt 新增unique标志位
+  int attribute_length;  // zt 属性个数
   char *relation_name;   // Relation name
-  char *attribute_name;  // Attribute name
+  char *attribute_name[];  // Attribute name zt 被修改为指针数组
 } CreateIndex;
 
 // struct of  drop_index
@@ -193,13 +203,27 @@ void aggr_attr_destory(AggrAttr *aggr_attr);
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
 
+// 增加时间转化函数
+int str_to_time(const char *time_str);
+
+// 将字符串转化为int存储
+void value_init_date(Value *value, const char *v);
 void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);
 void value_init_string(Value *value, const char *v);
 void value_destroy(Value *value);
 
+// std::string trim(const std::string &str);
+
+// void split(const std::string &str, std::vector<std::string> *ret_, std::string sep = ",");
+
+// bool DateVerify(int year, int month, int day);
+
+// // 校验yyyy/mm/dd
+// bool CheckDateValid(const std::string &strDate);
+
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-    int right_is_attr, RelAttr *right_attr, Value *right_value);
+                    int right_is_attr, RelAttr *right_attr, Value *right_value);
 void condition_destroy(Condition *condition);
 
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length);
@@ -212,7 +236,7 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
 void selects_append_aggr_attribute(Selects *selects, AggrAttr *aggr_attr);
 void selects_destroy(Selects *selects);
 
-void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num);
+void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record records[], size_t record_num);
 void inserts_destroy(Inserts *inserts);
 
 void deletes_init_relation(Deletes *deletes, const char *relation_name);
@@ -231,7 +255,12 @@ void drop_table_init(DropTable *drop_table, const char *relation_name);
 void drop_table_destroy(DropTable *drop_table);
 
 void create_index_init(
-    CreateIndex *create_index, const char *index_name, const char *relation_name, const char *attr_name);
+    CreateIndex *create_index, const char *index_name, const char *relation_name);
+    // zt 新增索引列名存储 支持多列索引
+void create_index_attr_init(CreateIndex *create_index,const char *attr) ;
+
+    // zt 新增初始化unique 标志位
+void create_index_unique_init(CreateIndex *create_index);
 void create_index_destroy(CreateIndex *create_index);
 
 void drop_index_init(DropIndex *drop_index, const char *index_name);

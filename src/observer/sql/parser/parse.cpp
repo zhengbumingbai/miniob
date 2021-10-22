@@ -55,6 +55,39 @@ void relation_attr_destroy(RelAttr *relation_attr) {
   relation_attr->relation_name = nullptr;
   relation_attr->attribute_name = nullptr;
 }
+// insert into tt values('2038-1-19');
+// SELECT *FROM tt WHERE u_date > '2020-1-20';
+// SELECT *FROM tt WHERE u_date < '2019-12-31';
+// SELECT *FROM tt WHERE u_date = '2020-1-1';
+
+// 新增 record 初始化
+void record_init(Insert_Record *record, Value *value, int value_length)
+{
+    LOG_DEBUG("初始化一个记录");
+    record->value_num = value_length;
+    for (int i = 0; i < value_length; i++)
+    {
+        
+        record->values[i].type = value[i].type;
+
+        switch (value[i].type)
+        {
+        case INTS:
+        case FLOATS:
+        case CHARS:
+        case DATES:
+        // 当前默认都是四字节
+        record->values[i].data = malloc(sizeof(int));
+        memcpy(record->values[i].data, value[i].data, sizeof(int));
+        break;
+        default:
+            break;
+        }
+
+        LOG_DEBUG("value-type: %d data: %d" , value[i].type,*(int *)(value[i].data));
+    }
+
+}
 
 void value_init_integer(Value *value, int v) {
   value->type = INTS;
@@ -70,6 +103,98 @@ void value_init_string(Value *value, const char *v) {
   value->type = CHARS;
   value->data = strdup(v);
 }
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+
+bool DateVerify(int year, int month, int day)
+{
+    LOG_DEBUG("VERIFY YEAR: %d, MONTH: %d, DAY:%d ", year, month, day);
+    if (year < 1970 || year > 2038 || month < 1 || month > 12 || day < 1 || day > 31)
+    {
+        return false;
+    }
+
+
+    switch (month)
+    {
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+        if (day > 30)
+        { // 4.6.9.11月天数不能大于30
+            return false;
+        }
+        break;
+    case 2:
+    {
+        bool bLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        if ((bLeapYear && day > 29) || (!bLeapYear && day > 28))
+        {
+            // 闰年2月不能大于29天;平年2月不能大于28天
+            return false;
+        }
+    }
+    break;
+    default:
+        break;
+    }
+
+    return true;
+}
+
+
+// 增加时间转化函数
+int str_to_time(const char *time_str)
+{
+    struct tm tm_time;
+    memset(&tm_time, 0, sizeof(struct tm));
+    char *temp_time = strdup(time_str);
+
+    // unix time <0 表示 1970年以前 表示时间戳生成错误 ==> 时间字符串错误
+    // 先校验是合法字符串再调UNIX时间戳生成
+
+    int str_len = strlen(temp_time);
+    int count = 0;
+    int time_numbers[3];
+    char *head = temp_time;
+    for (int i = 0; i <= str_len; i++)
+    {
+        if(temp_time[i]=='-' || temp_time[i]=='\0') {
+            temp_time[i] = '\0';
+            LOG_DEBUG("STRING: %s", head);
+            time_numbers[count] = atoi(head);
+            LOG_DEBUG("NUMBER: %d",atoi(head));
+            head = &(temp_time[i+1]);
+            count++;
+        }
+    }
+
+    free(temp_time);
+
+    bool result = DateVerify(time_numbers[0], time_numbers[1], time_numbers[2]);
+    if(result) {
+        strptime(time_str, "%Y-%m-%d", &tm_time);
+        int unixtime = mktime(&tm_time);
+        return unixtime;
+    }
+    else
+        return INT32_MIN;
+}
+
+// 将字符串转化为int存储
+void value_init_date(Value *value, const char *v)
+{
+    value->type = DATES;
+    int time = str_to_time(v);
+    value->data = malloc(sizeof(int));
+
+    // printf("Store time: %ud\n",time);
+    memcpy(value->data, &time, sizeof(int));
+}
+
 void value_destroy(Value *value) {
   value->type = UNDEFINED;
   free(value->data);
@@ -156,23 +281,39 @@ void selects_destroy(Selects *selects) {
   selects->condition_num = 0;
 }
 
-void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num) {
-  assert(value_num <= sizeof(inserts->values)/sizeof(inserts->values[0]));
-
-  inserts->relation_name = strdup(relation_name);
-  for (size_t i = 0; i < value_num; i++) {
-    inserts->values[i] = values[i];
-  }
-  inserts->value_num = value_num;
+// 修改record存储
+void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record records[], size_t record_num)
+{
+    // 数据的深拷贝！
+    assert(record_num <= sizeof(inserts->records) / sizeof(inserts->records[0]));
+    inserts->relation_name = strdup(relation_name);
+    for (size_t i = 0; i < record_num; i++)
+    {
+        inserts->records[i].value_num = records[i].value_num;
+        for (size_t j = 0; j< records[i].value_num; j++) {
+          inserts->records[i].values[j].type = records[i].values[j].type;
+          inserts->records[i].values[j].data = malloc(sizeof(int));
+          memcpy(inserts->records[i].values[j].data, records[i].values[j].data,
+                 sizeof(int));
+        }
+    }
+    inserts->record_num = record_num;
 }
+
+
+// zt 增加recoed的销毁
 void inserts_destroy(Inserts *inserts) {
   free(inserts->relation_name);
   inserts->relation_name = nullptr;
 
-  for (size_t i = 0; i < inserts->value_num; i++) {
-    value_destroy(&inserts->values[i]);
+  for (size_t i = 0; i < inserts->record_num; i++) {
+      for (size_t j = 0; j < inserts->records[i].value_num; j++)
+      {
+          value_destroy(&inserts->records[i].values[j]);
+      }
+      inserts->records[i].value_num = 0;
   }
-  inserts->value_num = 0;
+  inserts->record_num = 0;
 }
 
 void deletes_init_relation(Deletes *deletes, const char *relation_name) {
@@ -246,19 +387,37 @@ void drop_table_destroy(DropTable *drop_table) {
 }
 
 void create_index_init(CreateIndex *create_index, const char *index_name, 
-                       const char *relation_name, const char *attr_name) {
+                       const char *relation_name) {
   create_index->index_name = strdup(index_name);
   create_index->relation_name = strdup(relation_name);
-  create_index->attribute_name = strdup(attr_name);
 }
+
+// zt 新增索引列名存储 支持多列索引
+void create_index_attr_init(CreateIndex *create_index,const char *attr) {
+    LOG_DEBUG("记录 列名");
+    *(create_index->attribute_name + create_index->attribute_length) = strdup(attr);
+    create_index->attribute_length++;
+}
+
+// 新增unique标志位实现
+void create_index_unique_init(CreateIndex *create_index){
+    LOG_DEBUG("记录 UNIQUE");
+    create_index->isUnique = 1;
+}
+// zt 修改索引结构体的内存释放
 void create_index_destroy(CreateIndex *create_index) {
   free(create_index->index_name);
   free(create_index->relation_name);
-  free(create_index->attribute_name);
-
   create_index->index_name = nullptr;
   create_index->relation_name = nullptr;
-  create_index->attribute_name = nullptr;
+
+  for (int i = 0; i < create_index->attribute_length; i++)
+  {
+      free(create_index->attribute_name + i);
+      *(create_index->attribute_name + i) = nullptr;
+  }
+  create_index->isUnique = 0;
+  create_index->attribute_length = 0;
 }
 
 void drop_index_init(DropIndex *drop_index, const char *index_name) {

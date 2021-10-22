@@ -36,7 +36,7 @@ RC BplusTreeHandler::sync() {
   return disk_buffer_pool_->flush_all_pages(file_id_);
 }
 
-RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_length)
+RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_length, int isUnique)
 {
   BPPageHandle page_handle;
   IndexNode *root;
@@ -73,11 +73,14 @@ RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_
   }
   IndexFileHeader *file_header =(IndexFileHeader *)pdata;
   file_header->attr_length = attr_length;
-  file_header->key_length = attr_length + sizeof(RID);
+  file_header->key_length = attr_length + sizeof(RID); //zt 属性长度+记录长度
   file_header->attr_type = attr_type;
   file_header->node_num = 1;
-  file_header->order=((int)BP_PAGE_DATA_SIZE-sizeof(IndexFileHeader)-sizeof(IndexNode))/(attr_length+2*sizeof(RID));
+  //存储数据的空间减去索引文件头部的空间 减去（索引节点的大小/（属性长度+两倍的记录长度））
+  file_header->order=((int)BP_PAGE_DATA_SIZE-sizeof(IndexFileHeader)-sizeof(IndexNode))/(attr_length+2*sizeof(RID)); 
   file_header->root_page = page_num;
+// zt 增加关键字
+  file_header->isUnique = isUnique;
 
   root = get_index_node(pdata);
   root->is_leaf = 1;
@@ -163,6 +166,8 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
   float f1,f2;
   const char *s1,*s2;
   switch(attr_type){
+    // zt  date类型的key  按照int处理
+    case DATES:
     case INTS: {
       i1 = *(int *) pdata;
       i2 = *(int *) pkey;
@@ -192,15 +197,20 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
   }
   return -2;//This means error happens
 }
-int CmpKey(AttrType attr_type, int attr_length, const char *pdata, const char *pkey)
+int CmpKey(AttrType attr_type, int attr_length, const char *pdata, const char *pkey,int isUnique = 0)
 {
   int result = CompareKey(pdata, pkey, attr_type, attr_length);
   if (0 != result) {
     return result;
   }
-  RID *rid1 = (RID *) (pdata + attr_length);
-  RID *rid2 = (RID *) (pkey + attr_length);
-  return CmpRid(rid1, rid2);
+//   如果是唯一索引就不需要考虑 rid了 直接返回key的比较
+  if(isUnique) {
+      return 0;
+  }else {
+    RID *rid1 = (RID *) (pdata + attr_length);
+    RID *rid2 = (RID *) (pkey + attr_length);
+    return CmpRid(rid1, rid2);
+  }
 }
 
 RC BplusTreeHandler::find_leaf(const char *pkey,PageNum *leaf_page) {
@@ -214,14 +224,19 @@ RC BplusTreeHandler::find_leaf(const char *pkey,PageNum *leaf_page) {
     return rc;
   }
 
+    //zt pdata指向存储位置的开端
   rc = disk_buffer_pool_->get_data(&page_handle, &pdata);
   if(rc!=SUCCESS){
     return rc;
   }
+  
+
   node = get_index_node(pdata);
   while(0 == node->is_leaf){
+    //   check这个node的所有key
     for(i = 0; i < node->key_num; i++){
-      tmp = CmpKey(file_header_.attr_type, file_header_.attr_length,pkey,node->keys + i * file_header_.key_length);
+      tmp = CmpKey(file_header_.attr_type, file_header_.attr_length,pkey,node->keys + i * file_header_.key_length,file_header_.isUnique);
+    //   找到第一个小于大于该key的node 可以在其左侧继续查找 但是没有保存数据 只有叶子节点才保存数据
       if(tmp < 0)
         break;
     }
@@ -239,6 +254,7 @@ RC BplusTreeHandler::find_leaf(const char *pkey,PageNum *leaf_page) {
     }
     node = get_index_node(pdata);
   }
+//   搜索到合适的page page中存储了找到的叶子节点
   rc = disk_buffer_pool_->get_page_num(&page_handle, leaf_page);
   if(rc!=SUCCESS){
     return rc;
@@ -263,14 +279,15 @@ RC BplusTreeHandler::insert_into_leaf(PageNum leaf_page, const char *pkey, const
   if(rc != SUCCESS){
     return rc;
   }
+
   rc = disk_buffer_pool_->get_data(&page_handle, &pdata);
   if(rc != SUCCESS){
     return rc;
   }
   node = get_index_node(pdata);
-
+// 好像已经有UNIQUE了？TMD！
   for(insert_pos = 0; insert_pos < node->key_num; insert_pos++){
-    tmp = CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, node->keys + insert_pos * file_header_.key_length);
+    tmp = CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, node->keys + insert_pos * file_header_.key_length,file_header_.isUnique);
     if (tmp == 0) {
       return RC::RECORD_DUPLICATE_KEY;
     }
@@ -390,7 +407,7 @@ RC BplusTreeHandler::insert_into_leaf_after_split(PageNum leaf_page, const char 
   }
 
   for(insert_pos=0;insert_pos<leaf->key_num;insert_pos++){
-    tmp=CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, leaf->keys+insert_pos*file_header_.key_length);
+    tmp=CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, leaf->keys+insert_pos*file_header_.key_length,file_header_.isUnique);
     if(tmp<0)
       break;
   }
@@ -797,13 +814,17 @@ RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
   if(nullptr == disk_buffer_pool_){
     return RC::RECORD_CLOSED;
   }
+// zt  给key+rid分配 关键字的存储空间
   key=(char *)malloc(file_header_.key_length);
   if(key == nullptr){
     LOG_ERROR("Failed to alloc memory for key. size=%d", file_header_.key_length);
     return RC::NOMEM;
   }
+//   拷贝一份到key里 由属性值+rid组成
   memcpy(key,pkey,file_header_.attr_length);
   memcpy(key + file_header_.attr_length, rid, sizeof(*rid));
+
+//   找到应该插入的叶子节点位置
   rc= find_leaf(key, &leaf_page);
   if(rc!=SUCCESS){
     free(key);
@@ -821,6 +842,7 @@ RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
     free(key);
     return rc;
   }
+//   leaf指向第一个索引节点的插槽
   leaf=(IndexNode *)(pdata+sizeof(IndexFileHeader));
 
   if(leaf->key_num<file_header_.order-1){
@@ -829,6 +851,8 @@ RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
       free(key);
       return rc;
     }
+
+    // zt 插入到叶子节点中
     rc=insert_into_leaf(leaf_page,key,rid);
     if(rc!=SUCCESS){
       free(key);
@@ -887,7 +911,7 @@ RC BplusTreeHandler::get_entry(const char *pkey,RID *rid) {
 
   leaf = get_index_node(pdata);
   for(i=0;i<leaf->key_num;i++){
-    if(CmpKey(file_header_.attr_type, file_header_.attr_length,key,leaf->keys+(i*file_header_.key_length))==0){
+    if(CmpKey(file_header_.attr_type, file_header_.attr_length,key,leaf->keys+(i*file_header_.key_length),file_header_.isUnique)==0){
       memcpy(rid,leaf->rids+i,sizeof(RID));
       free(key);
       return SUCCESS;
@@ -917,7 +941,7 @@ RC BplusTreeHandler::delete_entry_from_node(PageNum node_page,const char *pkey) 
   node = get_index_node(pdata);
 
   for(delete_index=0;delete_index<node->key_num;delete_index++){
-    tmp=CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, node->keys+delete_index*file_header_.key_length);
+    tmp=CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, node->keys+delete_index*file_header_.key_length,file_header_.isUnique);
     if(tmp==0)
       break;
   }
@@ -1810,6 +1834,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
 
   AttrType  attr_type = index_handler_.file_header_.attr_type;
   switch(attr_type){
+    case DATES:
     case INTS:
       i1=*(int *)pkey;
       i2=*(int *)value_;
@@ -1832,6 +1857,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
   switch(comp_op_){
     case EQUAL_TO:
       switch(attr_type){
+        case DATES:
         case INTS:
           flag=(i1==i2);
           break;
@@ -1847,6 +1873,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
       break;
     case LESS_THAN:
       switch(attr_type){
+        case DATES:
         case INTS:
           flag=(i1<i2);
           break;
@@ -1862,6 +1889,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
       break;
     case GREAT_THAN:
       switch(attr_type){
+        case DATES:
         case INTS:
           flag=(i1>i2);
           break;
@@ -1877,6 +1905,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
       break;
     case LESS_EQUAL:
       switch(attr_type){
+        case DATES:
         case INTS:
           flag=(i1<=i2);
           break;
@@ -1892,6 +1921,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
       break;
     case GREAT_EQUAL:
       switch(attr_type){
+        case DATES:
         case INTS:
           flag=(i1>=i2);
           break;
@@ -1907,6 +1937,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
       break;
     case NOT_EQUAL:
       switch(attr_type){
+        case DATES:
         case INTS:
           flag=(i1!=i2);
           break;

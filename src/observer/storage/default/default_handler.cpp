@@ -135,6 +135,30 @@ RC DefaultHandler::drop_table(const char *dbname, const char *relation_name) {
   return db->drop_table(relation_name);
 }
 
+// 封装一层自己的create_index
+// TODO 索引开发
+RC DefaultHandler::create_index(Trx *trx, const char *dbname,const CreateIndex *create_index){
+    const char *datebase_name = dbname;
+    const char *table_name = create_index->relation_name;
+    LOG_DEBUG("Create Index Table name: %s",table_name);
+    const char *index_name = create_index->index_name;
+    LOG_DEBUG("Create Index Index name: %s",index_name);
+    int isUnique = create_index->isUnique;
+    LOG_DEBUG("Create Index is Unique: %d",isUnique);
+    for (int i = 0; i < create_index->attribute_length; i++)
+    {
+        // printf("Create Index Attr name: %s",create_index->attribute_name[i]);
+        LOG_DEBUG("Create Index Attr name: %s",create_index->attribute_name[i]);
+    }
+
+    // TODO 实现唯一索引与多列
+    Table *table = find_table(dbname, table_name);
+    if (nullptr == table) {
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+    return table->create_index(trx, index_name, create_index->attribute_name[0],isUnique);
+}
+
 RC DefaultHandler::create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, const char *attribute_name) {
   Table *table = find_table(dbname, relation_name);
   if (nullptr == table) {
@@ -148,14 +172,44 @@ RC DefaultHandler::drop_index(Trx *trx, const char *dbname, const char *relation
   return RC::GENERIC_ERROR;
 }
 
+
 RC DefaultHandler::insert_record(Trx *trx, const char *dbname, const char *relation_name, int value_num, const Value *values) {
   Table *table = find_table(dbname, relation_name);
   if (nullptr == table) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  return table->insert_record(trx, value_num, values);
+  return table->insert_record(trx, value_num, values,nullptr);
 }
+
+
+RC DefaultHandler::insert_many_records(Trx *trx, const char *dbname, const char *relation_name, int record_num, const Insert_Record *records)
+{
+    RC rc = RC::SUCCESS;
+    RID record_ids[record_num];
+
+    Table *table = find_table(dbname, relation_name);
+    if (nullptr == table)
+    {
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+
+    for (int i = 0; i < record_num; i++)
+    {
+        // Table 的insert操作已经有回滚操作了
+        // rc = insert_record(trx, dbname, relation_name, records[i].value_num, records[i].values + i);
+        rc= table->insert_record(trx, records[i].value_num, records[i].values,&record_ids[i]);
+        if(rc!=RC::SUCCESS){
+            // 对所有已插入数据进行回滚
+          for (int j = 0; j < i; j++) {
+            table->rollback_insert(trx, record_ids[j]);
+          }
+          break;
+        }
+    }
+    return rc;
+}
+
 RC DefaultHandler::delete_record(Trx *trx, const char *dbname, const char *relation_name,
                                  int condition_num, const Condition *conditions, int *deleted_count) {
   Table *table = find_table(dbname, relation_name);
