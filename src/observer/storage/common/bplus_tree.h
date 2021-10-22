@@ -18,14 +18,24 @@ See the Mulan PSL v2 for more details. */
 #include "storage/default/disk_buffer_pool.h"
 #include "sql/parser/parse_defs.h"
 
+#define MAX_COLUM 5
+
+// zt 新增多列属性数组
 struct IndexFileHeader {
-  int attr_length; //zt 属性长度
+//   int attr_length; //zt 属性长度
   int key_length; //zt 关键字长度
-  AttrType attr_type; //zt 属性类型
+//   AttrType attr_type; //zt 属性类型
+  IndexAttrInfo attrs[MAX_COLUM];
+  int arrr_num;
   PageNum root_page; // 初始时，root_page一定是1
   int node_num;
   int order; //好像是存储的个数？？？
   int isUnique; //新增Unique关键字在索引文件的header中
+};
+
+struct IndexAttrInfo {
+    AttrType attr_type;
+    int attr_length;
 };
 
 struct IndexNode {
