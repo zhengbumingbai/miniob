@@ -29,7 +29,6 @@ public:
 
     virtual void to_string(std::ostream &os) const = 0;
     virtual int compare(const TupleValue &other) const = 0;
-
 private:
 };
 
@@ -56,6 +55,19 @@ public:
         return value_ - int_other.value_;
     }
 
+    bool bigger_than(const int other)
+    {
+        return value_ > other;
+    }
+
+    int value() {
+        return value_;
+    }
+
+    void replace(int value) {
+        value_ = value;
+    }
+
 private:
     int value_;
 };
@@ -77,6 +89,24 @@ public:
         const IntValue &int_other = (const IntValue &)other;
         return value_ - int_other.value_;
     }
+
+    bool bigger_than(const int other)
+    {
+        return value_ > other;
+    }
+
+    void add(int b) {
+        value_ += b;
+    }
+
+    int value() {
+        return value_;
+    }
+
+    void replace(int value) {
+        value_ = value;
+    }
+
 private:
     int value_;
 };
@@ -106,9 +136,9 @@ public:
           }
           break;
         }
-    }
+      }
 
-    os << buf;
+        os << buf;
     }
 
     int compare(const TupleValue &other) const override
@@ -126,6 +156,22 @@ public:
         return 0;
     }
 
+    bool bigger_than(const float other)
+    {
+        return value_ > other;
+    }
+
+    void add(float b) {
+        value_ += b;
+    }
+
+    float value() {
+        return value_;
+    }
+
+    void replace(float value) {
+        value_ = value;
+    }
 private:
     float value_;
 };
@@ -151,6 +197,13 @@ public:
         return strcmp(value_.c_str(), string_other.value_.c_str());
     }
 
+    std::string value() {
+        return value_;
+    }
+
+    void replace(std::string value) {
+        value_ = value;
+    }
 private:
     std::string value_;
 };

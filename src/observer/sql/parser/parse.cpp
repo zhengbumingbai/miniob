@@ -30,12 +30,20 @@ void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op, const char *relation_
   } else {
     aggr_attr->relation_name = nullptr;
   }
-  aggr_attr->attribute_name = strdup(attribute_name);
+  if (attribute_name != nullptr) {
+    aggr_attr->attribute_name = strdup(attribute_name);
+  } else {
+    aggr_attr->attribute_name = nullptr;
+  }
+  
 }
 
 void aggr_attr_destory(AggrAttr *aggr_attr) {
   free(aggr_attr->relation_name);
   free(aggr_attr->attribute_name);
+  if(aggr_attr->is_constant) {
+    value_destroy(&aggr_attr->constant_value);
+  }
   aggr_attr->relation_name = nullptr;
   aggr_attr->attribute_name = nullptr;
 }
@@ -274,6 +282,10 @@ void selects_destroy(Selects *selects) {
     selects->relations[i] = NULL;
   }
   selects->relation_num = 0;
+
+  for (size_t i = 0; i < selects->aggr_num; i++) {
+    aggr_attr_destory(&selects->aggr_attr[i]);
+  }
 
   for (size_t i = 0; i < selects->condition_num; i++) {
     condition_destroy(&selects->conditions[i]);

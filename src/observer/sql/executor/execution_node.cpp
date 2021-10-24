@@ -53,14 +53,14 @@ SelectAggregationExeNode::SelectAggregationExeNode() : table_(nullptr) {
 }
 
 SelectAggregationExeNode::~SelectAggregationExeNode() {
-  for (AggregationConditionFilter * &filter : condition_filters_) {
+  for (DefaultConditionFilter * &filter : condition_filters_) {
     delete filter;
   }
   condition_filters_.clear();
 }
 
 RC
-SelectAggregationExeNode::init(Trx *trx, Table *table, TupleSchema &&tuple_schema, std::vector<AggregationConditionFilter *> &&condition_filters) {
+SelectAggregationExeNode::init(Trx *trx, Table *table, TupleSchema &&tuple_schema, std::vector<DefaultConditionFilter *> &&condition_filters) {
   trx_ = trx;
   table_ = table;
   tuple_schema_ = tuple_schema;

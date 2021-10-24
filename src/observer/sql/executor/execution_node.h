@@ -50,7 +50,7 @@ public:
   SelectAggregationExeNode();
   virtual ~SelectAggregationExeNode();
 
-  RC init(Trx *trx, Table *table, TupleSchema && tuple_schema, std::vector<AggregationConditionFilter *> &&condition_filters);
+  RC init(Trx *trx, Table *table, TupleSchema && tuple_schema, std::vector<DefaultConditionFilter *> &&condition_filters);
   void add_aggr_attr(const AggrAttr* attr) {
     aggr_attrs_.push_back(attr);
   }
@@ -59,7 +59,7 @@ private:
   Trx *trx_ = nullptr;
   Table  * table_;
   TupleSchema  tuple_schema_;
-  std::vector<AggregationConditionFilter *> condition_filters_;
+  std::vector<DefaultConditionFilter *> condition_filters_;
   std::vector<const AggrAttr *> aggr_attrs_;
 };
 

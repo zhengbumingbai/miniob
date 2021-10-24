@@ -116,8 +116,8 @@ void TupleSchema::add_if_not_exists(AttrType type, const char *table_name, const
   add(type, table_name, field_name);
 }
 
-void TupleSchema::add_aggr(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name) {
-  aggr_fields_.emplace_back(aggr_type, type, table_name, field_name);
+void TupleSchema::add_aggr(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name, const Value* constant_value) {
+  aggr_fields_.emplace_back(aggr_type, type, table_name, field_name, constant_value);
 }
 
 void TupleSchema::add_aggr_if_not_exists(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name) {
@@ -164,25 +164,61 @@ void TupleSchema::print(std::ostream &os) const {
     }
     for (std::vector<AggrField>::const_iterator iter = aggr_fields_.begin(), end = --aggr_fields_.end();
       iter != end; ++iter) {
-      if (table_names.size() > 1) {
-        os << iter->table_name() << ".";
-      }
+      
       std::string aggr_all_field_name;
+      std::string aggr_name;
+      if(iter->constant_value() != nullptr) {
+        switch(iter->constant_value()->type) {
+          case AttrType::INTS: {
+            int value = *(int *)iter->constant_value()->data;
+            aggr_name = std::to_string(value);
+            break;
+          }
+          case AttrType::FLOATS: {
+            float value = *(float *)iter->constant_value()->data;
+            char buf[128];
+            sprintf(buf, "%.2f", value);
+          //   std::string s(buf);
+            for (size_t i = 0; i < 128; i++) {
+              if (buf[i] == '.') {
+                // 最后一位
+                if (i + 2 < 128 && buf[i + 2] == '0') {
+                  buf[i + 2] = '\0';
+
+                  if (i + 1 < 128 && buf[i + 1] == '0') {
+                    buf[i] = '\0';
+                  }
+                }
+                break;
+              }
+            }
+            aggr_name = std::string(buf);
+            break;
+          }
+          default:
+            break;
+        }
+      } else {
+        if (table_names.size() > 1) {
+          aggr_name = iter->table_name() + std::string(".");
+        }
+        aggr_name += std::string(iter->field_name());
+      }
       switch(iter->aggr_type()) {
         case AggrType::COUNT: {
-          aggr_all_field_name = "COUNT(" + std::string(iter->field_name()) + ")";
+          aggr_all_field_name = "COUNT(" + aggr_name + ")";
           break;
         }
         case AggrType::AVG: {
-          aggr_all_field_name = "AVG(" + std::string(iter->field_name()) + ")";
+          aggr_all_field_name = "AVG(" + aggr_name + ")";
           break;
         }
         case AggrType::MIN: {
-          aggr_all_field_name = "MIN(" + std::string(iter->field_name()) + ")";
+          aggr_all_field_name = "MIN(" + aggr_name + ")";
           break;
         }
         case AggrType::MAX: {
-          aggr_all_field_name = "MAX(" + std::string(iter->field_name()) + ")";
+          aggr_all_field_name = "MAX(" + aggr_name + ")";
           break;
         }
         default:
@@ -194,21 +230,58 @@ void TupleSchema::print(std::ostream &os) const {
       os << fields_.back().table_name() << ".";
     }
     std::string aggr_all_field_name;
+    std::string aggr_name;
+    if(aggr_fields_.back().constant_value() != nullptr) {
+      switch(aggr_fields_.back().constant_value()->type) {
+        case AttrType::INTS: {
+          int value = *(int *)aggr_fields_.back().constant_value()->data;
+          aggr_name = std::to_string(value);
+          break;
+        }
+        case AttrType::FLOATS: {
+          float value = *(float *)aggr_fields_.back().constant_value()->data;
+          char buf[128];
+          sprintf(buf, "%.2f", value);
+          for (size_t i = 0; i < 128; i++) {
+            if (buf[i] == '.') {
+              // 最后一位
+              if (i + 2 < 128 && buf[i + 2] == '0') {
+                buf[i + 2] = '\0';
+
+                if (i + 1 < 128 && buf[i + 1] == '0') {
+                  buf[i] = '\0';
+                }
+              }
+              break;
+            }
+          }
+          aggr_name = std::string(buf);
+          break;
+        }
+        default:
+          break;
+      }
+    } else {
+      if (table_names.size() > 1) {
+        aggr_name = aggr_fields_.back().table_name() + std::string(".");
+      }
+      aggr_name += std::string(aggr_fields_.back().field_name());
+    }
     switch(aggr_fields_.back().aggr_type()) {
       case AggrType::COUNT: {
-        aggr_all_field_name = "COUNT(" + std::string(aggr_fields_.back().field_name()) + ")";
+        aggr_all_field_name = "COUNT(" + aggr_name + ")";
         break;
       }
       case AggrType::AVG: {
-        aggr_all_field_name = "AVG(" + std::string(aggr_fields_.back().field_name()) + ")";
+        aggr_all_field_name = "AVG(" + aggr_name + ")";
         break;
       }
       case AggrType::MIN: {
-        aggr_all_field_name = "MIN(" + std::string(aggr_fields_.back().field_name()) + ")";
+        aggr_all_field_name = "MIN(" + aggr_name + ")";
         break;
       }
       case AggrType::MAX: {
-        aggr_all_field_name = "MAX(" + std::string(aggr_fields_.back().field_name()) + ")";
+        aggr_all_field_name = "MAX(" + aggr_name + ")";
         break;
       }
       default:
@@ -397,14 +470,66 @@ AggregationRecordConverter::AggregationRecordConverter(Table *table, TupleSet &t
       Tuple tuple;
       for (int i=0; i<aggr_fields.size(); i++) {
         const AggrField &aggr_field = aggr_fields[i];
+        const Value* constant_value = aggr_field.constant_value();
+        if (constant_value != nullptr) {
+          switch (aggr_field.aggr_type()) {
+            case AggrType::COUNT:
+              aggr_results_[i] = new IntValue(0);
+              break;
+            case AggrType::AVG:
+              if(constant_value->type == AttrType::INTS) {
+                int value = *(int *)constant_value->data;
+                aggr_results_[i] = new FloatValue(float(value));
+              } else {
+                float value = *(float *)constant_value->data;
+                aggr_results_[i] = new FloatValue(value);
+              }
+              break;
+            case AggrType::MAX:
+            case AggrType::MIN:
+              if(constant_value->type == AttrType::INTS) {
+                int value = *(int *)constant_value->data;
+                aggr_results_[i] = new IntValue(value);
+              } else {
+                float value = *(float *)constant_value->data;
+                aggr_results_[i] = new FloatValue(value);
+              }
+              break;
+          }
+          continue;
+        }
         if (aggr_field.aggr_type() == AggrType::COUNT) {
-          aggr_results_[i] = 0;
+          aggr_results_[i] = new IntValue(0);
         } else if (aggr_field.aggr_type() == AggrType::AVG) {
-          aggr_results_[i] = 0;
+          aggr_results_[i] = new FloatValue(0);
         } else if (aggr_field.aggr_type() == AggrType::MIN) {
-          aggr_results_[i] = DBL_MAX_EXP;
+          switch(aggr_field.type()) {
+            case AttrType::INTS:
+              aggr_results_[i] = new IntValue(INT32_MAX);
+              break;
+            case AttrType::FLOATS:
+              aggr_results_[i] = new FloatValue(FLT_MAX);
+              break;
+            case AttrType::DATES:
+              aggr_results_[i] = new DateValue(str_to_time("2038-1-31"));
+              break;
+            default:
+              LOG_DEBUG("AggregationRecordConverter init not support other type.");
+          }
         } else if (aggr_field.aggr_type() == AggrType::MAX) {
-          aggr_results_[i] = DBL_MIN_EXP;
+          switch(aggr_field.type()) {
+            case AttrType::INTS:
+              aggr_results_[i] = new IntValue(INT32_MIN);
+              break;
+            case AttrType::FLOATS:
+              aggr_results_[i] = new FloatValue(FLT_MIN);
+              break;
+            case AttrType::DATES:
+              aggr_results_[i] = new DateValue(str_to_time("1970-1-1"));
+              break;
+            default:
+              LOG_DEBUG("AggregationRecordConverter init not support other type.");
+          }
         }
       }
 }
@@ -417,69 +542,128 @@ void AggregationRecordConverter::read_record(const char *record) {
   int tuple_loc = 0;
   for (int i=0; i<aggr_fields.size(); i++) {
     const AggrField &aggr_field = aggr_fields[i];
+    const Value* contant_value = aggr_field.constant_value();
+    if (contant_value != nullptr) {
+      switch (aggr_field.aggr_type()) {
+        case AggrType::COUNT: {
+          line_counts_[i] += 1;
+          IntValue* result = dynamic_cast<IntValue*>(aggr_results_[i]);
+          result->add(1);
+          break;
+        }
+        default:
+          break;
+      }
+      continue;
+    }
     if (aggr_field.aggr_type() == AggrType::COUNT){
       if (0 == strcmp("*", aggr_field.field_name())) {
         // *的情况必为COUNT， 其他类型已经在上层做过滤
-        aggr_results_[i] += 1;
         line_counts_[i] += 1;
+        IntValue* result = dynamic_cast<IntValue*>(aggr_results_[i]);
+        result->add(1);
         continue;
       } else {
-        // 后期才会出现某一列值为NULL的情况，现暂不处理COUNT中的这种情况
-        aggr_results_[i] += 1;
+        // 此时的情况为filed_name为某一列id，后期才会出现某一列值为NULL的情况，现暂不处理COUNT中的这种情况
         line_counts_[i] += 1;
+        IntValue* result = dynamic_cast<IntValue*>(aggr_results_[i]);
+        result->add(1);
         continue;
       }
     }
-
     const FieldMeta *field_meta = table_meta.field(aggr_field.field_name());
     assert(field_meta != nullptr);
-    switch (field_meta->type()) {
-      case INTS: {
-        int value = *(int*)(record + field_meta->offset());
-        switch (aggr_field.aggr_type())
-        {
-        case AggrType::AVG:
-          aggr_results_[i] += (double)value;
-          break;
-        case AggrType::MAX:
-          aggr_results_[i] = value > aggr_results_[i] ? (double)value : aggr_results_[i];
-          break;
-        case AggrType::MIN:
-          aggr_results_[i] = value < aggr_results_[i] ? (double)value : aggr_results_[i];
-        default:
-          LOG_DEBUG("Not Support AGGR_UNDEFINED aggregation. ");
-          break;
+    switch(aggr_field.aggr_type()) {
+      case AggrType::AVG: {
+        FloatValue* result = dynamic_cast<FloatValue*>(aggr_results_[i]);
+        switch (field_meta->type()) {
+          case AttrType::INTS: {
+            int value = *(int*)(record + field_meta->offset());
+            result->add(float(value));
+            line_counts_[i] += 1;
+            break;
+          }
+          case AttrType::FLOATS: {
+            float value = *(float*)(record + field_meta->offset());
+            result->add(value);
+            line_counts_[i] += 1;
+            break;
+          }
+          default:
+            LOG_PANIC("AggregationRecordConverter::read_record Unsupported field type. type=%d", field_meta->type());
         }
-        line_counts_[i] += 1;
+        break;
       }
-      break;
-      case FLOATS: {
-        float value = *(float *)(record + field_meta->offset());
-        switch (aggr_field.aggr_type())
-        {
-        case AggrType::AVG:
-          aggr_results_[i] += (double)value;
-          break;
-        case AggrType::MAX:
-          aggr_results_[i] = value > aggr_results_[i] ? (double)value : aggr_results_[i];
-          break;
-        case AggrType::MIN:
-          aggr_results_[i] = value < aggr_results_[i] ? (double)value : aggr_results_[i];
-        default:
-          LOG_DEBUG("Not Support AGGR_UNDEFINED aggregation. ");
-          break;
+      case AggrType::MAX: {
+        switch (field_meta->type()) {
+          case AttrType::INTS: {
+            int value = *(int*)(record + field_meta->offset());
+            IntValue* result = dynamic_cast<IntValue*>(aggr_results_[i]);
+            if (!result->bigger_than(value)) {
+              result->replace(value);
+            }
+            line_counts_[i] += 1;
+            break;
+          }
+          case AttrType::FLOATS: {
+            float value = *(float*)(record + field_meta->offset());
+            FloatValue* result = dynamic_cast<FloatValue*>(aggr_results_[i]);
+            if (!result->bigger_than(value)) {
+              result->replace(value);
+            }
+            line_counts_[i] += 1;
+            break;
+          }
+          case AttrType::DATES: {
+            int value = *(int*)(record + field_meta->offset());
+            DateValue* result = dynamic_cast<DateValue*>(aggr_results_[i]);
+            if (!result->bigger_than(value)) {
+              result->replace(value);
+            }
+            line_counts_[i] += 1;
+            break;
+          }
+          default:
+            LOG_PANIC("AggregationRecordConverter::read_record Unsupported field type. type=%d", field_meta->type());
         }
-        line_counts_[i] += 1;
+        break;
       }
-      break;
-      case CHARS: {
-        LOG_DEBUG("AggregationRecordConverter::add_record Aggregation Not Support CHARS.");
-        return;
+      case AggrType::MIN: {
+        switch (field_meta->type()) {
+          case AttrType::INTS: {
+            int value = *(int*)(record + field_meta->offset());
+            IntValue* result = dynamic_cast<IntValue*>(aggr_results_[i]);
+            if (result->bigger_than(value)) {
+              result->replace(value);
+            }
+            line_counts_[i] += 1;
+            break;
+          }
+          case AttrType::FLOATS: {
+            float value = *(float*)(record + field_meta->offset());
+            FloatValue* result = dynamic_cast<FloatValue*>(aggr_results_[i]);
+            if (result->bigger_than(value)) {
+              result->replace(value);
+            }
+            line_counts_[i] += 1;
+            break;
+          }
+          case AttrType::DATES: {
+            int value = *(int*)(record + field_meta->offset());
+            DateValue* result = dynamic_cast<DateValue*>(aggr_results_[i]);
+            if (result->bigger_than(value)) {
+              result->replace(value);
+            }
+            line_counts_[i] += 1;
+            break;
+          }
+          default:
+            LOG_PANIC("AggregationRecordConverter::read_record Unsupported field type. type=%d", field_meta->type());
+        }
+        break;
       }
-      break;
-      default: {
-        LOG_PANIC("Unsupported field type. type=%d", field_meta->type());
-      }
+      default:
+        LOG_DEBUG("Not Support AGGR_UNDEFINED aggregation. ");
     }
   }
 }
@@ -491,17 +675,66 @@ RC AggregationRecordConverter::final_add_record() {
   Tuple tuple;
   for (int i=0; i<aggr_fields.size(); i++) {
     const AggrField &aggr_field = aggr_fields[i];
+    const Value* constant_value = aggr_field.constant_value();
+    if (constant_value != nullptr) {
+      switch(aggr_field.aggr_type()) {
+        case AggrType::COUNT: {
+          IntValue* value_tuple = dynamic_cast<IntValue*>(aggr_results_[i]);
+          tuple.add(value_tuple->value());
+          break;
+        }
+        case AggrType::AVG: {
+          FloatValue* value_tuple = dynamic_cast<FloatValue*>(aggr_results_[i]);
+          tuple.add(value_tuple->value());
+          break;
+        }
+        case AggrType::MAX:
+        case AggrType::MIN: {
+          if (constant_value->type == AttrType::INTS) {
+            IntValue* value_tuple = dynamic_cast<IntValue*>(aggr_results_[i]);
+            tuple.add(value_tuple->value());
+            break;
+          } else {
+            FloatValue* value_tuple = dynamic_cast<FloatValue*>(aggr_results_[i]);
+            tuple.add(value_tuple->value());
+            break;
+          }
+        }
+      }
+      continue;
+    }
     switch(aggr_field.aggr_type()) {
-      case AggrType::COUNT:
-        tuple.add(int(aggr_results_[i]));
+      case AggrType::COUNT: {
+        IntValue* value_tuple = dynamic_cast<IntValue*>(aggr_results_[i]);
+        tuple.add(value_tuple->value());
         break;
-      case AggrType::AVG:
-        tuple.add(float(aggr_results_[i] / line_counts_[i]));
+      }
+      case AggrType::AVG: {
+        FloatValue* value_tuple = dynamic_cast<FloatValue*>(aggr_results_[i]);
+        tuple.add(value_tuple->value() / line_counts_[i]);
         break;
+      }
       case AggrType::MAX:
-      case AggrType::MIN:
-        tuple.add(float(aggr_results_[i]));
+      case AggrType::MIN: {
+        switch (aggr_field.type()) {
+          case AttrType::INTS: {
+            IntValue* value_tuple = dynamic_cast<IntValue*>(aggr_results_[i]);
+            tuple.add(value_tuple->value(), AttrType::INTS);
+            break;
+          }
+          case AttrType::FLOATS: {
+            FloatValue* value_tuple = dynamic_cast<FloatValue*>(aggr_results_[i]);
+            tuple.add(value_tuple->value());
+            break;
+          }
+          case AttrType::DATES: {
+            DateValue* value_tuple = dynamic_cast<DateValue*>(aggr_results_[i]);
+            tuple.add(value_tuple->value(), AttrType::DATES);
+            break;
+          }
+        }
         break;
+      }
       default:
         LOG_DEBUG("Not Support AGGR_UNDEFINED aggregation. ");
         rc = RC::GENERIC_ERROR;

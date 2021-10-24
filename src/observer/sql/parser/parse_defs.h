@@ -26,6 +26,15 @@ See the Mulan PSL v2 for more details. */
 //聚合类型
 typedef enum { AGGR_UNDEFINED, COUNT, AVG, MAX, MIN } AggrType;
 
+//属性值类型
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
+
+//属性值
+typedef struct _Value {
+  AttrType type;  // type of value
+  void *data;     // value
+} Value;
+
 //属性结构体
 typedef struct {
   char *relation_name;   // relation name (may be NULL) 表名
@@ -35,7 +44,9 @@ typedef struct {
 typedef struct {
   char *relation_name;   // relation name (may be NULL) 表名
   char *attribute_name;  // attribute name              属性名
-  AggrType aggr_type; // 聚合类型
+  Value constant_value;  // 常数类型
+  int is_constant;       // 如果聚合括号内是常数
+  AggrType aggr_type;    // 聚合类型
 } AggrAttr;
 
 typedef enum {
@@ -47,15 +58,6 @@ typedef enum {
   GREAT_THAN,   //">"     5
   NO_OP
 } CompOp;
-
-//属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
-
-//属性值
-typedef struct _Value {
-  AttrType type;  // type of value
-  void *data;     // value
-} Value;
 
 typedef struct _Condition {
   int left_is_attr;    // TRUE if left-hand side is an attribute

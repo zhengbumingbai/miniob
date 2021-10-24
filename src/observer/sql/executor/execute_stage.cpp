@@ -355,17 +355,20 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
     return RC::SUCCESS;
 }
 
-static RC schema_add_aggr_field(AggrType aggr_type, Table *table, const char *field_name, TupleSchema &schema)
+static RC schema_add_aggr_field(const AggrAttr* aggr, Table *table, const char *field_name, TupleSchema &schema)
 {   
+    if (aggr->is_constant) {
+        schema.add_aggr(aggr->aggr_type, AttrType::UNDEFINED, table->name(), field_name, &aggr->constant_value);
+        return RC::SUCCESS;
+    }
     if (0 == strcmp("*", field_name)) {
-        if (aggr_type == AggrType::COUNT) {
-            schema.add_aggr(aggr_type, AttrType::INTS, table->name(), field_name);
+        if (aggr->aggr_type == AggrType::COUNT) {
+            schema.add_aggr(aggr->aggr_type, AttrType::INTS, table->name(), field_name, nullptr);
             return RC::SUCCESS;
         } else {
             LOG_DEBUG("AVG MIN MAX not support * field");
             return RC::SCHEMA_FIELD_TYPE_MISMATCH;
         }
-        
     }
     const FieldMeta *field_meta = table->table_meta().field(field_name);
     if (nullptr == field_meta)
@@ -373,16 +376,30 @@ static RC schema_add_aggr_field(AggrType aggr_type, Table *table, const char *fi
         LOG_WARN("No such field in aggregation. %s.%s", table->name(), field_name);
         return RC::SCHEMA_FIELD_MISSING;
     }
-    if (aggr_type != AggrType::COUNT) {
-        if (field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS) {
-            LOG_WARN("Field type in aggregation not support aggregation op of avg, max, min. %s.%s", table->name(), field_meta->name());
-            return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-        }
-        schema.add_aggr(aggr_type, AttrType::FLOATS, table->name(), field_meta->name());
-    } else {
-        schema.add_aggr(aggr_type, AttrType::INTS, table->name(), field_meta->name());
+    switch(aggr->aggr_type) {
+        case AggrType::COUNT:
+            schema.add_aggr(aggr->aggr_type, AttrType::INTS, table->name(), field_meta->name(), nullptr);
+            break;
+        case AggrType::AVG:
+            if (field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS) {
+                LOG_WARN("Field type in aggregation not support aggregation op of avg. %s.%s", table->name(), field_meta->name());
+                return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+            }
+            schema.add_aggr(aggr->aggr_type, AttrType::FLOATS, table->name(), field_meta->name(), nullptr);
+            break;
+        case AggrType::MAX:
+        case AggrType::MIN:
+            if (field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS && field_meta->type() != AttrType::DATES) {
+                LOG_WARN("Field type in aggregation not support aggregation op of max, min. %s.%s", table->name(), field_meta->name());
+                return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+            }
+            schema.add_aggr(aggr->aggr_type, field_meta->type(), table->name(), field_meta->name(), nullptr);
+            break;
+        default:
+            LOG_DEBUG("Not Support AGGR_UNDEGINED.");
+            return RC::GENERIC_ERROR;
+            break;
     }
-    
     return RC::SUCCESS;
 }
 
@@ -398,30 +415,41 @@ RC create_selection_aggregation_executor(Trx *trx, const Selects &selects, const
     const TableMeta &table_meta = table->table_meta();
 
     if (selects.aggr_num > 0) {
-        for (int i=0; i < selects.aggr_num; i++) {
+        for (int i = selects.aggr_num - 1; i >= 0; i--) {
+            // 反向遍历以与输入顺序对齐
             const AggrAttr &attr = selects.aggr_attr[i];
-            const FieldMeta *field = table_meta.field(attr.attribute_name);
-            // 如果聚合表达式是*
-            if (0 == strcmp("*", attr.attribute_name)) {
-                select_node.add_aggr_attr(&attr);
-                schema.add_aggr(attr.aggr_type, AttrType::INTS, table_name, attr.attribute_name);
-                continue;
-            }
-            if (nullptr == field)
-            {
-                LOG_WARN("No such field in aggregation. %s.%s", table->name(), field);
-                return RC::SCHEMA_FIELD_MISSING;
-            }
+            // const FieldMeta *field = table_meta.field(attr.attribute_name);
+            // // 如果聚合表达式是*
+            // if (0 == strcmp("*", attr.attribute_name)) {
+            //     select_node.add_aggr_attr(&attr);
+            //     RC rc = schema_add_aggr_field(attr.aggr_type, table, attr.attribute_name, schema);
+            //     if (rc != RC::SUCCESS)
+            //     {
+            //         return rc;
+            //     }
+            //     // schema.add_aggr(attr.aggr_type, AttrType::INTS, table_name, attr.attribute_name);
+            //     continue;
+            // }
+            // if (nullptr == field)
+            // {
+            //     LOG_WARN("No such field in aggregation. %s.%s", table->name(), attr.attribute_name);
+            //     return RC::SCHEMA_FIELD_MISSING;
+            // }
             if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
                 select_node.add_aggr_attr(&attr);
-                schema.add_aggr(attr.aggr_type, field->type(), table_name, attr.attribute_name);
+                RC rc = schema_add_aggr_field(&attr, table, attr.attribute_name, schema);
+                if (rc != RC::SUCCESS)
+                {
+                    return rc;
+                }
+                // schema.add_aggr(attr.aggr_type, field->type(), table_name, attr.attribute_name);
             } else {
                 return RC::SCHEMA_TABLE_NAME_ILLEGAL;
             }
         }
     }
     // 找出仅与此表相关的过滤条件, 或者都是值的过滤条件
-    std::vector<AggregationConditionFilter *> condition_filters;
+    std::vector<DefaultConditionFilter *> condition_filters;
     for (size_t i = 0; i < selects.condition_num; i++)
     {
         const Condition &condition = selects.conditions[i];
@@ -432,12 +460,12 @@ RC create_selection_aggregation_executor(Trx *trx, const Selects &selects, const
              match_table(selects, condition.left_attr.relation_name, table_name) && match_table(selects, condition.right_attr.relation_name, table_name)) // 左右都是属性名，并且表名都符合
         )
         {
-            AggregationConditionFilter *condition_filter = new AggregationConditionFilter();
+            DefaultConditionFilter *condition_filter = new DefaultConditionFilter();
             RC rc = condition_filter->init(*table, condition);
             if (rc != RC::SUCCESS)
             {
                 delete condition_filter;
-                for (AggregationConditionFilter *&filter : condition_filters)
+                for (DefaultConditionFilter *&filter : condition_filters)
                 {
                     delete filter;
                 }
