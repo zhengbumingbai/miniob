@@ -50,11 +50,14 @@ public:
   virtual RC sync() = 0;
 
 protected:
-  RC init(const IndexMeta &index_meta, const FieldMeta &field_meta);
+// zt 修改索引初始化函数
+    RC init(const IndexMeta &index_meta, std::vector<const FieldMeta *> &field_meta);
 
 protected:
   IndexMeta   index_meta_;
-  FieldMeta   field_meta_;    /// 当前实现仅考虑一个字段的索引
+  //FieldMeta   field_meta_;    /// 当前实现仅考虑一个字段的索引
+//   多字段索引
+  std::vector<FieldMeta> field_metas;
 };
 
 class IndexScanner {

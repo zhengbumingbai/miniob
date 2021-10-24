@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <limits.h>
 #include <string.h>
+#include <vector>
 
 #include <algorithm>
 
@@ -584,25 +585,51 @@ static RC insert_index_record_reader_adapter(Record *record, void *context) {
   return inserter.insert_index(record);
 }
 
-RC Table::create_index(Trx *trx, const char *index_name,
-                       const char *attribute_name,int isUnique) {
-  if (index_name == nullptr || common::is_blank(index_name) ||
-      attribute_name == nullptr || common::is_blank(attribute_name)) {
-    return RC::INVALID_ARGUMENT;
-  }
-  if (table_meta_.index(index_name) != nullptr ||
-      table_meta_.find_index_by_field((attribute_name))) {
-    return RC::SCHEMA_INDEX_EXIST;
-  }
+// zt 增加多列属性元信息录入
+RC Table::create_index(Trx *trx, const char *index_name, const char **attribute_name, int attribute_length, int isUnique)
+{
+    // 检查索引名是否为nullptr或者空白字符串
+    if (index_name == nullptr || common::is_blank(index_name))
+    {
+        return RC::INVALID_ARGUMENT;
+    }
+    // 检查每一个属性名是否为nullptr或者空百字符串 
+    for (int i = 0; i < attribute_length; i++)
+    {
+        const char *attr_name = attribute_name[i];
+        if (attr_name == nullptr || common::is_blank(attr_name))
+        {
+            return RC::INVALID_ARGUMENT;
+        }
+    }
 
-  const FieldMeta *field_meta = table_meta_.field(attribute_name);
-  if (!field_meta) {
-    return RC::SCHEMA_FIELD_MISSING;
-  }
+    // if (index_name == nullptr || common::is_blank(index_name) ||
+    //     attribute_name == nullptr || common::is_blank(attribute_name))
+    // {
+    //     return RC::INVALID_ARGUMENT;
+    // }
+// zt 检查是否有重名索引或者结构的索引
+    if (table_meta_.index(index_name) != nullptr ||
+        table_meta_.find_index_by_field(attribute_name, attribute_length))
+    {
+        return RC::SCHEMA_INDEX_EXIST;
+    }
+
+    // table元信息检查 查看是否每一个属性都存在
+    std::vector<const FieldMeta *> file_metas;
+    for (int i = 0; i < attribute_length; i++)
+    {
+        const FieldMeta *field_meta = table_meta_.field(attribute_name[i]);
+        if (!field_meta)
+        {
+            return RC::SCHEMA_FIELD_MISSING;
+        }
+        file_metas.push_back(field_meta);
+    }
 
     // zt 初始化索引元信息 增加uniuqe 字段
   IndexMeta new_index_meta;
-  RC rc = new_index_meta.init(index_name, *field_meta, isUnique);
+  RC rc = new_index_meta.init(index_name, attribute_name, attribute_length, isUnique);
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -611,7 +638,7 @@ RC Table::create_index(Trx *trx, const char *index_name,
   BplusTreeIndex *index = new BplusTreeIndex();
   std::string index_file =
       index_data_file(base_dir_.c_str(), name(), index_name);
-  rc = index->create(index_file.c_str(), new_index_meta, *field_meta);
+  rc = index->create(index_file.c_str(), new_index_meta, file_metas);
   if (rc != RC::SUCCESS) {
     delete index;
     LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s",
@@ -946,9 +973,12 @@ Index *Table::find_index(const char *index_name) const {
   return nullptr;
 }
 
+//zt 为了满足多列索引 需要重构寻找合适的索引
+// zt 只有一个列的情况
 IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
   const ConDesc *field_cond_desc = nullptr;
   const ConDesc *value_cond_desc = nullptr;
+//   zt 条件两端必须有一个不是常量 
   if (filter.left().is_attr && !filter.right().is_attr) {
     field_cond_desc = &filter.left();
     value_cond_desc = &filter.right();
@@ -956,6 +986,8 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
     field_cond_desc = &filter.right();
     value_cond_desc = &filter.left();
   }
+
+//   如果不满足条件就返回nullptr
   if (field_cond_desc == nullptr || value_cond_desc == nullptr) {
     return nullptr;
   }
@@ -968,8 +1000,11 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
     return nullptr;
   }
 
+// 根据filed名去找该表合适的索引元信息
+//   const char* attibute_name[5];
+  const char *attibute_name = field_meta->name();
   const IndexMeta *index_meta =
-      table_meta_.find_index_by_field(field_meta->name());
+      table_meta_.find_index_by_field(&attibute_name,1);
   if (nullptr == index_meta) {
     return nullptr;
   }
@@ -989,16 +1024,19 @@ IndexScanner *Table::find_index_for_scan(const ConditionFilter *filter) {
   }
 
   // remove dynamic_cast
+//   zt 查看是否是默认条件过滤 也就是只有一个过滤条件
   const DefaultConditionFilter *default_condition_filter =
       dynamic_cast<const DefaultConditionFilter *>(filter);
   if (default_condition_filter != nullptr) {
     return find_index_for_scan(*default_condition_filter);
   }
 
+//zt 查看是否是多个条件过滤
   const CompositeConditionFilter *composite_condition_filter =
       dynamic_cast<const CompositeConditionFilter *>(filter);
   if (composite_condition_filter != nullptr) {
     int filter_num = composite_condition_filter->filter_num();
+    // zt 在每一个条件上进行查找索引，但是 目前处理的方法是找到第一个符合条件的索引就返回 
     for (int i = 0; i < filter_num; i++) {
       IndexScanner *scanner =
           find_index_for_scan(&composite_condition_filter->filter(i));

@@ -149,12 +149,26 @@ const IndexMeta * TableMeta::index(const char *name) const {
   return nullptr;
 }
 
-const IndexMeta * TableMeta::find_index_by_field(const char *field) const {
+const IndexMeta * TableMeta::find_index_by_field(const char **fields, int attribute_length) const {
   for (const IndexMeta &index : indexes_) {
-    if (0 == strcmp(index.field(), field)) {
-      return &index;
+// zt 逻辑是如果fields的所有属性名都满足该索引的前n个属性名即可匹配，索引的关联列数应该大于等于属性个数
+    bool isMatch = 1;
+    for (int i = 0; i < attribute_length; i++)
+    {
+        if(index.field_names()[i] != fields[i]){
+            isMatch = 0;
+            break;
+        }
     }
+    
+    if(isMatch){
+        return &index;
+    }
+    // if (0 == strcmp(index.field(), field)) {
+    //   return &index;
+    // }
   }
+//   未找到匹配的
   return nullptr;
 }
 

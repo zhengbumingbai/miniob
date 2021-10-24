@@ -57,7 +57,7 @@ public:
   RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, void (*record_reader)(const char *data, void *context));
 
 // zt 新增一个unique关键字，默认不开启 不需要修改原来的调用接口
-  RC create_index(Trx *trx, const char *index_name, const char *attribute_name,int isUnique = 0);
+  RC create_index(Trx *trx, const char *index_name, char *const *attribute_name, int attribute_length, int isUnique = 0);
   RC destroy_table();
 
 public:

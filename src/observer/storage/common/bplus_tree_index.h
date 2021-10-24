@@ -23,8 +23,11 @@ public:
   BplusTreeIndex() = default;
   virtual ~BplusTreeIndex() noexcept;
 
-  RC create(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta);
-  RC open(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta);
+// zt 修改索引的创建函数
+  RC create(const char *file_name, const IndexMeta &index_meta, std::vector<const FieldMeta *> &field_metas);
+  //   RC create(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta);
+//   RC open(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta);
+  RC open(const char *file_name, const IndexMeta &index_meta, std::vector<const FieldMeta *> &field_metas);
   RC close();
 
   RC insert_entry(const char *record, const RID *rid) override;
@@ -34,10 +37,10 @@ public:
 
   RC sync() override;
 
-private:
-  bool inited_ = false;
-  BplusTreeHandler index_handler_;
-};
+  private:
+      bool inited_ = false;
+      BplusTreeHandler index_handler_;
+  };
 
 class BplusTreeIndexScanner : public IndexScanner {
 public:

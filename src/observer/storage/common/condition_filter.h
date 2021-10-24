@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 struct Record;
 class Table;
 
+// zt 条件的属性信息
 struct ConDesc {
   bool   is_attr;     // 是否属性，false 表示是值
   int    attr_length; // 如果是属性，表示属性值长度
@@ -40,6 +41,7 @@ public:
   virtual bool filter(const Record &rec) const = 0;
 };
 
+// zt 默认条件过滤，只有左右两个值作比较
 class DefaultConditionFilter : public ConditionFilter {
 public:
   DefaultConditionFilter();
@@ -70,6 +72,7 @@ private:
   CompOp   comp_op_ = NO_OP;
 };
 
+// zt复合条件过滤 继承于ConditionFilter， 有多个condition共同组成
 class CompositeConditionFilter : public ConditionFilter {
 public:
   CompositeConditionFilter() = default;

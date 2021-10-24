@@ -46,7 +46,8 @@ public:
   int sys_field_num() const;
 
   const IndexMeta * index(const char *name) const;
-  const IndexMeta * find_index_by_field(const char *field) const;
+//   zt 修改逻辑 适配多列索引
+  const IndexMeta * find_index_by_field(const char **fields, int attribute_length) const;
   const IndexMeta * index(int i) const;
   int index_num() const;
 
