@@ -32,12 +32,21 @@ See the Mulan PSL v2 for more details. */
 #include "storage/default/default_handler.h"
 #include "storage/common/condition_filter.h"
 #include "storage/trx/trx.h"
+#include "util/cartesian_product.h"
 
 using namespace common;
 
 RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node);
 RC create_selection_aggregation_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectAggregationExeNode &select_node);
 
+//以下三个函数(for 多表查询): add by cmk
+void tupleset_cond_filt(const TupleSet& src_tupleset, const std::vector<Condition>& conditions ,TupleSet& dst_tupleset);
+
+bool tuple_matched_conditions(const Tuple& src_tuple, 
+                                    const TupleSchema& src_tuple_schema,
+                                    const std::vector<Condition>& conditions);
+
+void find_conditions(const Selects& selects, std::vector<Condition>& conditions);
 //! Constructor
 ExecuteStage::ExecuteStage(const char *tag) : Stage(tag) {}
 
@@ -290,7 +299,9 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         return RC::SQL_SYNTAX;
     }
 
+    //add by cmk (2021/10/21)
     std::vector<TupleSet> tuple_sets;
+    tuple_sets.reserve(selects.relation_num);
     for (ExecutionNode *&node : select_nodes)
     {
         TupleSet tuple_set;
@@ -306,16 +317,47 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         }
         else
         {
-            tuple_sets.push_back(std::move(tuple_set));
+            //modified by cmk(2021/10/21)
+            //原来使用push_back()时，tuple_sets里的表和查询时输入的表的顺序是相反的。改为insert
+            // tuple_sets.push_back(std::move(tuple_set));
+            tuple_sets.insert(tuple_sets.begin(), std::move(tuple_set));
         }
     }
 
     std::stringstream ss;
     if (tuple_sets.size() > 1)
-    {
-        // 本次查询了多张表，需要做笛卡尔积
-        LOG_ERROR("Have not implement multi tables query.");
-        return RC::GENERIC_ERROR;
+    {   
+        // 本次查询了多张表，需要做join操作
+        bool exist_empty_table = false;
+        LOG_INFO("tuple sets size is %d", tuple_sets.size());
+        TupleSchema all_tables_schemas;
+        for(auto iter = tuple_sets.begin(); iter != tuple_sets.end(); iter++){
+            all_tables_schemas.append((*iter).get_schema());
+            if((*iter).size() == 0){
+                exist_empty_table = true;
+                break;
+            }
+        }
+        //如果有空表，则只打印列名
+        if(exist_empty_table){
+            LOG_INFO("exist empty table,print fields only");
+            all_tables_schemas.print(ss);
+        }else{
+            TupleSet table_after_join;
+            cartesian_product(tuple_sets, table_after_join);
+            std::vector<Condition> conditions;
+            find_conditions(selects, conditions);
+
+            if(conditions.size() == 0){ //不带条件的多表查询
+                LOG_INFO("no multiple table select conditions");
+                table_after_join.print(ss);
+            }else{ //带条件的多表查询
+                LOG_INFO("multiple table select conditions number is [%d]", conditions.size());
+                TupleSet table_after_join_and_filt;
+                tupleset_cond_filt(table_after_join, conditions, table_after_join_and_filt);
+                table_after_join_and_filt.print(ss);
+            }
+        }
     }
     else
     {
@@ -540,4 +582,83 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
     }
 
     return select_node.init(trx, table, std::move(schema), std::move(condition_filters));
+}
+
+//add by cmk(2021/10/24) : 从多表查询的结果TupleSet中取出满足conditions的tuple,组成新的Tupleset
+void tupleset_cond_filt(const TupleSet& src_tupleset, const std::vector<Condition>& conditions,TupleSet& dst_tupleset)
+{
+    //针对TupleSet里的每一个Tuple
+    const TupleSchema& src_tuple_schema = src_tupleset.get_schema();
+    for(int j = 0; j < src_tupleset.size(); j++){
+        const Tuple& src_tuple = src_tupleset.get(j);
+        //若符合所有conditions，则添加到dst_tupleset
+        if(tuple_matched_conditions(src_tuple, src_tuple_schema, conditions)){
+            Tuple dst_tuple;
+            append_tuple(dst_tuple, src_tuple);
+            dst_tupleset.add(std::move(dst_tuple));
+        }
+    }
+
+    //设置dst_tupleset的字段
+    dst_tupleset.set_schema(src_tuple_schema);
+ }
+
+//add by cmk(2021/10/24) : 找出和多个表相关的过滤条件
+void find_conditions(const Selects& selects, std::vector<Condition>& conditions)
+{
+    for(size_t i = 0; i < selects.condition_num; i++){
+        const Condition& condition = selects.conditions[i];
+        if(condition.left_is_attr == 1 && condition.right_is_attr == 1 && 
+                (0 != strcmp(condition.left_attr.relation_name, condition.right_attr.relation_name))){
+            conditions.push_back(condition);
+        }
+    }
+}
+
+//add by cmk(2021/10/24): 判断一个Tuple是否满足某些conditions
+ bool tuple_matched_conditions(const Tuple& src_tuple, 
+                                    const TupleSchema& src_tuple_schema,
+                                    const std::vector<Condition>& conditions)
+{   
+    bool matched_tuple = false; 
+    for(auto condition : conditions){
+        int tuple_value_left_index = 
+            src_tuple_schema.index_of_field(condition.left_attr.relation_name, condition.left_attr.attribute_name);
+        int tuple_value_right_index = 
+            src_tuple_schema.index_of_field(condition.right_attr.relation_name, condition.right_attr.attribute_name);
+        auto& left = src_tuple.get(tuple_value_left_index);
+        auto& right = src_tuple.get(tuple_value_right_index);
+
+        int cmp_result = 0;
+        cmp_result = left.compare(right);
+        LOG_INFO("CMP_RESULT is [%d]",cmp_result);
+
+        switch (condition.comp) {
+            case EQUAL_TO:
+                matched_tuple = (0 == cmp_result);
+                break;
+            case LESS_EQUAL:
+                matched_tuple = (cmp_result <= 0);
+                break;
+            case NOT_EQUAL:
+                matched_tuple = (cmp_result != 0);
+                break;
+            case LESS_THAN:
+                matched_tuple = (cmp_result < 0);
+                break;
+            case GREAT_EQUAL:
+                matched_tuple = (cmp_result >= 0);
+                break;
+            case GREAT_THAN:
+                matched_tuple = (cmp_result > 0);
+                break;
+            default:
+                matched_tuple = false;
+                break;
+        }
+        //目前只有And的条件判断(其中一个条件不满足则认为不满足)
+        if(matched_tuple == false) return false;
+    }
+    return matched_tuple;
+
 }
