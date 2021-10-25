@@ -71,7 +71,7 @@ public:
    * 此函数创建一个名为fileName的索引。
    * attrType描述被索引属性的类型，attrLength描述被索引属性的长度
    */
-    RC create(const char *file_name, std::vector<const FieldMeta *> &field_metas, int isUnique = 0); //zt 新增isUnique，写在索引文件的header中
+    RC create(const char *file_name, const std::vector<FieldMeta> &field_metas, int isUnique = 0); //zt 新增isUnique，写在索引文件的header中
 
     /**
    * 打开名为fileName的索引文件。
@@ -138,6 +138,11 @@ private:
   friend class BplusTreeScanner;
 };
 
+struct CompareObject{
+  CompOp comp_op_ = NO_OP;                      // 用于比较的操作符
+  const char *value_ = nullptr;		              // 与属性行比较的值
+};
+
 class BplusTreeScanner {
 public:
   BplusTreeScanner(BplusTreeHandler &index_handler);
@@ -147,7 +152,8 @@ public:
    * compOp和*value指定比较符和比较值，indexScan为初始化后的索引扫描结构指针
    * 没有带两个边界的范围扫描
    */
-  RC open(CompOp comp_op, const char *value);
+// zt  修改为多列
+  RC open(std::vector<CompareObject> &compare_objects);
 
   /**
    * 用于继续索引扫描，获得下一个满足条件的索引项，
@@ -174,8 +180,10 @@ private:
 private:
   BplusTreeHandler   & index_handler_;
   bool opened_ = false;
-  CompOp comp_op_ = NO_OP;                      // 用于比较的操作符
-  const char *value_ = nullptr;		              // 与属性行比较的值
+
+  std::vector<CompareObject> compare_objects_;
+//   CompOp comp_op_ = NO_OP;                      // 用于比较的操作符
+//   const char *value_ = nullptr;		              // 与属性行比较的值
   int num_fixed_pages_ = -1;                    // 固定在缓冲区中的页，与指定的页面固定策略有关
   int pinned_page_count_ = 0;                   // 实际固定在缓冲区的页面数
   BPPageHandle page_handles_[BP_BUFFER_SIZE];   // 固定在缓冲区页面所对应的页面操作列表

@@ -33,7 +33,7 @@ public:
     // zt 修改初始化函数
 //   RC init(const char *name, const FieldMeta &field,int isUnique = 0);
 // zt 为了适配多列 再次修改初始化函数
-  RC init(const char *name, const char **attribute_name, int attribute_length, int isUnique);
+  RC init(const char *name, std::vector<std::string> attribute_names, int isUnique);
 
 public:
   const char *name() const;

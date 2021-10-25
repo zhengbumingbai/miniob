@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "rc.h"
 #include "storage/common/index_meta.h"
+#include "storage/common/bplus_tree.h"
 #include "storage/common/field_meta.h"
 #include "storage/common/record_manager.h"
 
@@ -45,13 +46,13 @@ public:
   virtual RC insert_entry(const char *record, const RID *rid) = 0;
   virtual RC delete_entry(const char *record, const RID *rid) = 0;
 
-  virtual IndexScanner *create_scanner(CompOp comp_op, const char *value) = 0;
+  virtual IndexScanner *create_scanner(std::vector<CompareObject> compare_objects) = 0;
 
   virtual RC sync() = 0;
 
 protected:
 // zt 修改索引初始化函数
-    RC init(const IndexMeta &index_meta, std::vector<const FieldMeta *> &field_meta);
+    RC init(const IndexMeta &index_meta, const std::vector<FieldMeta> &field_meta);
 
 protected:
   IndexMeta   index_meta_;

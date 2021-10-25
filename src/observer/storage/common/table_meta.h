@@ -38,6 +38,7 @@ public:
 
 public:
   const char * name() const;
+  std::vector<FieldMeta> & fields();
   const FieldMeta * trx_field() const;
   const FieldMeta * field(int index) const;
   const FieldMeta * field(const char *name) const;
@@ -47,7 +48,8 @@ public:
 
   const IndexMeta * index(const char *name) const;
 //   zt 修改逻辑 适配多列索引
-  const IndexMeta * find_index_by_field(const char **fields, int attribute_length) const;
+//   const IndexMeta * find_index_by_field(const char **fields, int attribute_length) const;
+  const IndexMeta * find_index_by_field(std::vector<std::string> atteibute_names) const ;
   const IndexMeta * index(int i) const;
   int index_num() const;
 

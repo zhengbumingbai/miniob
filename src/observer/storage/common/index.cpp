@@ -15,10 +15,10 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/index.h"
 
 // TODO 修改Index类
-RC Index::init(const IndexMeta &index_meta, std::vector<const FieldMeta *> &field_meta) {
+RC Index::init(const IndexMeta &index_meta, const std::vector< FieldMeta> &field_meta) {
     index_meta_ = index_meta;
     for(auto &it:field_meta){
-        field_metas.push_back(*it);
+        field_metas.push_back(it);
     }
     // field_meta_ = field_meta;
     return RC::SUCCESS;

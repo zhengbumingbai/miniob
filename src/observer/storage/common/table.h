@@ -21,12 +21,15 @@ class DiskBufferPool;
 class RecordFileHandler;
 class ConditionFilter;
 class DefaultConditionFilter;
+class CompositeConditionFilter;
 struct Record;
 struct RID;
 class Index;
 class IndexScanner;
 class RecordDeleter;
 class Trx;
+
+bool file_exist(const char *file);
 
 class Table {
 public:
@@ -57,7 +60,7 @@ public:
   RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, void (*record_reader)(const char *data, void *context));
 
 // zt 新增一个unique关键字，默认不开启 不需要修改原来的调用接口
-  RC create_index(Trx *trx, const char *index_name, char *const *attribute_name, int attribute_length, int isUnique = 0);
+  RC create_index(Trx *trx, const char *index_name, std::vector<std::string> atteibute_names, int isUnique);
   RC destroy_table();
 
 public:
@@ -78,7 +81,8 @@ private:
   RC scan_record_by_index(Trx *trx, IndexScanner *scanner, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));
   IndexScanner *find_index_for_scan(const ConditionFilter *filter);
   IndexScanner *find_index_for_scan(const DefaultConditionFilter &filter);
-
+//   针对复合查询返回一个最合适的索引
+  IndexScanner *find_index_for_scan(const CompositeConditionFilter &filter);
   RC insert_record(Trx *trx, Record *record);
   RC delete_record(Trx *trx, Record *record);
   RC update_record(Trx *trx, Record *old_record, Record *record); //第三题
