@@ -525,6 +525,14 @@ aggr_list:
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
+	| AGGR_COUNT LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 1, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
 	| AGGR_MAX LBRACE NUMBER RBRACE aggr_list {
 		AggrAttr attr;
 		aggr_attr_init(&attr, 3, NULL, NULL);
@@ -539,6 +547,14 @@ aggr_list:
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
+	| AGGR_MAX LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 3, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
 	| AGGR_MIN LBRACE NUMBER RBRACE aggr_list {
 		AggrAttr attr;
 		aggr_attr_init(&attr, 4, NULL, NULL);
@@ -550,6 +566,14 @@ aggr_list:
 		AggrAttr attr;
 		aggr_attr_init(&attr, 4, NULL, NULL);
 		value_init_float(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 4, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}

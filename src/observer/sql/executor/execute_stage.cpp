@@ -431,7 +431,8 @@ static RC schema_add_aggr_field(const AggrAttr* aggr, Table *table, const char *
             break;
         case AggrType::MAX:
         case AggrType::MIN:
-            if (field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS && field_meta->type() != AttrType::DATES) {
+            if (field_meta->type() == AttrType::UNDEFINED) {
+                // Min Max 支持所有类型，除了UNDEFINED
                 LOG_WARN("Field type in aggregation not support aggregation op of max, min. %s.%s", table->name(), field_meta->name());
                 return RC::SCHEMA_FIELD_TYPE_MISMATCH;
             }
@@ -460,23 +461,6 @@ RC create_selection_aggregation_executor(Trx *trx, const Selects &selects, const
         for (int i = selects.aggr_num - 1; i >= 0; i--) {
             // 反向遍历以与输入顺序对齐
             const AggrAttr &attr = selects.aggr_attr[i];
-            // const FieldMeta *field = table_meta.field(attr.attribute_name);
-            // // 如果聚合表达式是*
-            // if (0 == strcmp("*", attr.attribute_name)) {
-            //     select_node.add_aggr_attr(&attr);
-            //     RC rc = schema_add_aggr_field(attr.aggr_type, table, attr.attribute_name, schema);
-            //     if (rc != RC::SUCCESS)
-            //     {
-            //         return rc;
-            //     }
-            //     // schema.add_aggr(attr.aggr_type, AttrType::INTS, table_name, attr.attribute_name);
-            //     continue;
-            // }
-            // if (nullptr == field)
-            // {
-            //     LOG_WARN("No such field in aggregation. %s.%s", table->name(), attr.attribute_name);
-            //     return RC::SCHEMA_FIELD_MISSING;
-            // }
             if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
                 select_node.add_aggr_attr(&attr);
                 RC rc = schema_add_aggr_field(&attr, table, attr.attribute_name, schema);

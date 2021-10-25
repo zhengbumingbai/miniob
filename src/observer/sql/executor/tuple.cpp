@@ -195,6 +195,11 @@ void TupleSchema::print(std::ostream &os) const {
             aggr_name = std::string(buf);
             break;
           }
+          case AttrType::CHARS: {
+            char* value = (char*)iter->constant_value()->data;
+            aggr_name = std::string(value);
+            break;
+          }
           default:
             break;
         }
@@ -256,6 +261,11 @@ void TupleSchema::print(std::ostream &os) const {
             }
           }
           aggr_name = std::string(buf);
+          break;
+        }
+        case AttrType::CHARS: {
+          char* value = (char*)aggr_fields_.back().constant_value()->data;
+          aggr_name = std::string(value);
           break;
         }
         default:
@@ -332,14 +342,6 @@ void TupleSet::add(Tuple &&tuple) {
   tuples_.emplace_back(std::move(tuple));
 }
 
-void TupleSet::add_aggr_tuple(Tuple &&tuple) {
-  aggr_tuples_.emplace_back(std::move(tuple));
-}
-
-void TupleSet::replace_aggr_tuple(int i, Tuple &&tuple) {
-  aggr_tuples_.emplace(aggr_tuples_.begin() + i, tuple);
-}
-
 void TupleSet::clear() {
   tuples_.clear();
   schema_.clear();
@@ -353,8 +355,7 @@ void TupleSet::print(std::ostream &os) const {
 
   schema_.print(os);
 
-  if (aggr_tuples_.size() > 0) {
-    for (const Tuple &item : aggr_tuples_) {
+  for (const Tuple &item : tuples_) {
       const std::vector<std::shared_ptr<TupleValue>> &values = item.values();
       for (std::vector<std::shared_ptr<TupleValue>>::const_iterator iter = values.begin(), end = --values.end();
             iter != end; ++iter) {
@@ -364,18 +365,6 @@ void TupleSet::print(std::ostream &os) const {
       values.back()->to_string(os);
       os << std::endl;
     }
-  } else {
-    for (const Tuple &item : tuples_) {
-      const std::vector<std::shared_ptr<TupleValue>> &values = item.values();
-      for (std::vector<std::shared_ptr<TupleValue>>::const_iterator iter = values.begin(), end = --values.end();
-            iter != end; ++iter) {
-        (*iter)->to_string(os);
-        os << " | ";
-      }
-      values.back()->to_string(os);
-      os << std::endl;
-    }
-  }
 }
 
 void TupleSet::set_schema(const TupleSchema &schema) {
@@ -387,31 +376,19 @@ const TupleSchema &TupleSet::get_schema() const {
 }
 
 bool TupleSet::is_empty() const {
-  return tuples_.empty() && aggr_tuples_.empty();
+  return tuples_.empty();
 }
 
 int TupleSet::size() const {
-  if (aggr_tuples_.size() > 0) {
-    return aggr_tuples_.size();
-  } else {
-    return tuples_.size();
-  }
+  return tuples_.size();
 }
 
 const Tuple &TupleSet::get(int index) const {
   return tuples_[index];
 }
 
-const Tuple &TupleSet::get_aggr(int index) const {
-  return aggr_tuples_[index];
-}
-
 const std::vector<Tuple> &TupleSet::tuples() const {
   return tuples_;
-}
-
-const std::vector<Tuple> &TupleSet::aggr_tuples() const {
-  return aggr_tuples_;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -490,9 +467,12 @@ AggregationRecordConverter::AggregationRecordConverter(Table *table, TupleSet &t
               if(constant_value->type == AttrType::INTS) {
                 int value = *(int *)constant_value->data;
                 aggr_results_[i] = new IntValue(value);
-              } else {
+              } else if (constant_value->type == AttrType::FLOATS){
                 float value = *(float *)constant_value->data;
                 aggr_results_[i] = new FloatValue(value);
+              } else {
+                char* value = (char*)constant_value->data;
+                aggr_results_[i] = new StringValue(value);
               }
               break;
           }
@@ -513,6 +493,9 @@ AggregationRecordConverter::AggregationRecordConverter(Table *table, TupleSet &t
             case AttrType::DATES:
               aggr_results_[i] = new DateValue(str_to_time("2038-1-31"));
               break;
+            case AttrType::CHARS:
+              aggr_results_[i] = new StringValue("");
+              break;
             default:
               LOG_DEBUG("AggregationRecordConverter init not support other type.");
           }
@@ -527,11 +510,15 @@ AggregationRecordConverter::AggregationRecordConverter(Table *table, TupleSet &t
             case AttrType::DATES:
               aggr_results_[i] = new DateValue(str_to_time("1970-1-1"));
               break;
+            case AttrType::CHARS:
+              aggr_results_[i] = new StringValue("");
+              break;
             default:
               LOG_DEBUG("AggregationRecordConverter init not support other type.");
           }
         }
       }
+      first_read_ = true;
 }
 
 void AggregationRecordConverter::read_record(const char *record) {
@@ -599,28 +586,46 @@ void AggregationRecordConverter::read_record(const char *record) {
           case AttrType::INTS: {
             int value = *(int*)(record + field_meta->offset());
             IntValue* result = dynamic_cast<IntValue*>(aggr_results_[i]);
-            if (!result->bigger_than(value)) {
+            line_counts_[i] += 1;
+            if (first_read_) {
+              result->replace(value);
+            } else if (!result->bigger_than(value)) {
               result->replace(value);
             }
-            line_counts_[i] += 1;
             break;
           }
           case AttrType::FLOATS: {
             float value = *(float*)(record + field_meta->offset());
             FloatValue* result = dynamic_cast<FloatValue*>(aggr_results_[i]);
-            if (!result->bigger_than(value)) {
+            line_counts_[i] += 1;
+            if (first_read_) {
+              result->replace(value);
+            } else if (!result->bigger_than(value)) {
               result->replace(value);
             }
-            line_counts_[i] += 1;
             break;
           }
           case AttrType::DATES: {
             int value = *(int*)(record + field_meta->offset());
             DateValue* result = dynamic_cast<DateValue*>(aggr_results_[i]);
-            if (!result->bigger_than(value)) {
+            line_counts_[i] += 1;
+            if (first_read_) {
+              result->replace(value);
+            } else if (!result->bigger_than(value)) {
               result->replace(value);
             }
+            break;
+          }
+          case AttrType::CHARS: {
+            char* value = (char*)(record + field_meta->offset());
+            StringValue* result = dynamic_cast<StringValue*>(aggr_results_[i]);
+            StringValue value_in(value);
             line_counts_[i] += 1;
+            if (first_read_) {
+              result->replace(value_in.value());
+            } else if (result->compare(value_in) < 0) {
+              result->replace(value_in.value());
+            }
             break;
           }
           default:
@@ -633,28 +638,46 @@ void AggregationRecordConverter::read_record(const char *record) {
           case AttrType::INTS: {
             int value = *(int*)(record + field_meta->offset());
             IntValue* result = dynamic_cast<IntValue*>(aggr_results_[i]);
-            if (result->bigger_than(value)) {
+            line_counts_[i] += 1;
+            if (first_read_) {
+              result->replace(value);
+            } else if (result->bigger_than(value)) {
               result->replace(value);
             }
-            line_counts_[i] += 1;
             break;
           }
           case AttrType::FLOATS: {
             float value = *(float*)(record + field_meta->offset());
             FloatValue* result = dynamic_cast<FloatValue*>(aggr_results_[i]);
-            if (result->bigger_than(value)) {
+            line_counts_[i] += 1;
+            if (first_read_) {
+              result->replace(value);
+            } else if (result->bigger_than(value)) {
               result->replace(value);
             }
-            line_counts_[i] += 1;
             break;
           }
           case AttrType::DATES: {
             int value = *(int*)(record + field_meta->offset());
             DateValue* result = dynamic_cast<DateValue*>(aggr_results_[i]);
-            if (result->bigger_than(value)) {
+            line_counts_[i] += 1;
+            if (first_read_) {
+              result->replace(value);
+            } else if (result->bigger_than(value)) {
               result->replace(value);
             }
+            break;
+          }
+          case AttrType::CHARS: {
+            char* value = (char*)(record + field_meta->offset());
+            StringValue* result = dynamic_cast<StringValue*>(aggr_results_[i]);
+            StringValue value_in(value);
             line_counts_[i] += 1;
+            if (first_read_) {
+              result->replace(value_in.value());
+            } else if (result->compare(value_in) > 0) {
+              result->replace(value_in.value());
+            }
             break;
           }
           default:
@@ -666,6 +689,7 @@ void AggregationRecordConverter::read_record(const char *record) {
         LOG_DEBUG("Not Support AGGR_UNDEFINED aggregation. ");
     }
   }
+  first_read_ = false;
 }
 
 RC AggregationRecordConverter::final_add_record() {
@@ -694,10 +718,13 @@ RC AggregationRecordConverter::final_add_record() {
             IntValue* value_tuple = dynamic_cast<IntValue*>(aggr_results_[i]);
             tuple.add(value_tuple->value());
             break;
-          } else {
+          } else if(constant_value->type == AttrType::FLOATS) {
             FloatValue* value_tuple = dynamic_cast<FloatValue*>(aggr_results_[i]);
             tuple.add(value_tuple->value());
             break;
+          } else {
+            StringValue* value_tuple = dynamic_cast<StringValue*>(aggr_results_[i]);
+            tuple.add(value_tuple->value().c_str(), value_tuple->value().size());
           }
         }
       }
@@ -730,6 +757,11 @@ RC AggregationRecordConverter::final_add_record() {
           case AttrType::DATES: {
             DateValue* value_tuple = dynamic_cast<DateValue*>(aggr_results_[i]);
             tuple.add(value_tuple->value(), AttrType::DATES);
+            break;
+          }
+          case AttrType::CHARS: {
+            StringValue* value_tuple = dynamic_cast<StringValue*>(aggr_results_[i]);
+            tuple.add(value_tuple->value().c_str(), value_tuple->value().size());
             break;
           }
         }

@@ -182,18 +182,12 @@ public:
 
   void add(Tuple && tuple);
 
-  void replace_aggr_tuple(int i, Tuple && tuple);
-
-  void add_aggr_tuple(Tuple && tuple);
-
   void clear();
 
   bool is_empty() const;
   int size() const;
   const Tuple &get(int index) const;
-  const Tuple &get_aggr(int index) const;
   const std::vector<Tuple> &tuples() const;
-  const std::vector<Tuple> &aggr_tuples() const;
   void print(std::ostream &os) const;
 public:
   const TupleSchema &schema() const {
@@ -201,7 +195,6 @@ public:
   }
 private:
   std::vector<Tuple> tuples_;
-  std::vector<Tuple> aggr_tuples_;
   TupleSchema schema_;
 };
 
@@ -234,6 +227,7 @@ private:
   std::vector<const AggrAttr *> &aggr_attrs_;
   std::vector<TupleValue*> aggr_results_;
   std::vector<int> line_counts_;
+  bool first_read_;
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_TUPLE_H_
