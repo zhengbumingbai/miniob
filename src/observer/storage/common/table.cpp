@@ -487,7 +487,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit,
   if (index_scanner != nullptr) {
     RC rc = scan_record_by_index(trx, index_scanner, filter, limit, context,
                                 record_reader);
-    if(rc == RC::RECORD_NO_MORE_IDX_IN_MEM || rc == RC::RECORD_EOF) return RC::SUCCESS;
+    if(rc == RC::RECORD_NO_MORE_IDX_IN_MEM || rc == RC::RECORD_EOF || rc == RC::SUCCESS) return RC::SUCCESS;
   }
 
   RC rc = RC::SUCCESS;

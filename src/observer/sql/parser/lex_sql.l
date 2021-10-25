@@ -81,6 +81,10 @@ QUOTE            [\'\"]
 [Mm][Ii][Nn]              RETURN_TOKEN(AGGR_MIN);
 [Aa][Vv][Gg]              RETURN_TOKEN(AGGR_AVG);
 [Uu][Nn][Ii][Qq][Uu][Ee]                 RETURN_TOKEN(UNIQUE); // zt 新增UNIQUE 关键字 ，支持唯一索引
+[Nn][Uu][Ll][Ll]			RETURN_TOKEN(NULLTOKEN);
+[Nn][Oo][Tt]				RETURN_TOKEN(NOT);
+[Nn][Uu][Ll][Ll][Aa][Bb][Ll][Ee]	RETURN_TOKEN(NULLABLE);
+
 {ID}							                       yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 "("								                       RETURN_TOKEN(LBRACE);
 ")"								                       RETURN_TOKEN(RBRACE);
