@@ -29,12 +29,13 @@ const char *ATTR_TYPE_NAME[] = {
   "chars",
   "ints",
   "floats",
-  "dates"
+  "dates",
+  "texts"
 };
 
 const char *attr_type_to_string(AttrType type) {
     // FLOATS == > DATES  新增了类型 DATES, 修改类型上界下标
-  if (type >= UNDEFINED && type <= DATES) {
+  if (type >= UNDEFINED && type <= TEXTS) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";

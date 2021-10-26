@@ -105,7 +105,8 @@ RC create_index(Trx *trx, const char *dbname, const CreateIndex *create_index);
    * @param attrName
    * @return
    */
-  RC create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, const char *attribute_name);
+//   zt 弃用该函数
+//   RC create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, const char *attribute_name);
 
   /**
    * 该函数用来删除名为indexName的索引。

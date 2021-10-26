@@ -214,6 +214,12 @@ void value_init_null(Value * value) {
   value->data = nullptr;
 }
 
+void value_init_text(Value *value, const char *v)
+{
+    value->type = TEXTS;
+    value->data = value->data = strdup(v);
+}
+
 void value_destroy(Value *value) {
   value->type = UNDEFINED;
   if (value->type != AttrType::NULLFIELD) {

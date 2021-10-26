@@ -21,6 +21,7 @@ class DiskBufferPool;
 class RecordFileHandler;
 class ConditionFilter;
 class DefaultConditionFilter;
+class CompositeConditionFilter;
 class AggregationConditionFilter;
 struct Record;
 struct RID;
@@ -28,6 +29,8 @@ class Index;
 class IndexScanner;
 class RecordDeleter;
 class Trx;
+
+bool file_exist(const char *file);
 
 class Table {
 public:
@@ -58,7 +61,7 @@ public:
   RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, void (*record_reader)(const char *data, void *context));
 
 // zt 新增一个unique关键字，默认不开启 不需要修改原来的调用接口
-  RC create_index(Trx *trx, const char *index_name, const char *attribute_name,int isUnique = 0);
+  RC create_index(Trx *trx, const char *index_name, std::vector<std::string> atteibute_names, int isUnique);
   RC destroy_table();
 
 public:
@@ -69,16 +72,20 @@ public:
   RC sync();
 
 public:
+  std::string base_dir();
   RC commit_insert(Trx *trx, const RID &rid);
   RC commit_delete(Trx *trx, const RID &rid);
   RC rollback_insert(Trx *trx, const RID &rid);
   RC rollback_delete(Trx *trx, const RID &rid);
+
 
 private:
   RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));
   RC scan_record_by_index(Trx *trx, IndexScanner *scanner, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));
   IndexScanner *find_index_for_scan(const ConditionFilter *filter);
   IndexScanner *find_index_for_scan(const DefaultConditionFilter &filter);
+//   针对复合查询返回一个最合适的索引
+  IndexScanner *find_index_for_scan(const CompositeConditionFilter &filter);
   IndexScanner *find_index_for_scan(const AggregationConditionFilter &filter);
 
   RC insert_record(Trx *trx, Record *record);
@@ -95,7 +102,7 @@ private:
 private:
   RC init_record_handler(const char *base_dir);
   RC make_record(int value_num, const Value *values, char * &record_out);
-  RC make_updated_record(const char* record_in, const char *attribute_name, const Value *value, char * &record_out);
+  RC make_updated_record(const char* record_in, const char *attribute_name, const Value *value, char * &record_out,char *&copyed_old_record);
 
 private:
   Index *find_index(const char *index_name) const;

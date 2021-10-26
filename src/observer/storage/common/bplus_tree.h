@@ -17,23 +17,37 @@ See the Mulan PSL v2 for more details. */
 #include "record_manager.h"
 #include "storage/default/disk_buffer_pool.h"
 #include "sql/parser/parse_defs.h"
+#include "field_meta.h"
 
+#define MAX_COLUM 5
+#define DEFAULT_DATA_SIZE  4
+
+struct IndexAttrInfo
+{
+    AttrType attr_type;
+    int attr_length;
+};
+// zt 新增多列属性数组
 struct IndexFileHeader {
-  int attr_length; //zt 属性长度
+//   int attr_length; //zt 属性长度
   int key_length; //zt 关键字长度
-  AttrType attr_type; //zt 属性类型
+//   AttrType attr_type; //zt 属性类型
+  struct IndexAttrInfo attrs[MAX_COLUM];
+  int attr_num;
   PageNum root_page; // 初始时，root_page一定是1
   int node_num;
   int order; //好像是存储的个数？？？
   int isUnique; //新增Unique关键字在索引文件的header中
 };
 
+
+
 struct IndexNode {
   int is_leaf;
   int key_num;
   PageNum parent;
-  char *keys;
-  RID *rids;
+  char *keys; // key开始处的指针
+  RID *rids; // RID指针？
 };
 
 struct TreeNode {
@@ -57,40 +71,40 @@ public:
    * 此函数创建一个名为fileName的索引。
    * attrType描述被索引属性的类型，attrLength描述被索引属性的长度
    */
-  RC create(const char *file_name, AttrType attr_type, int attr_length,int isUnique = 0); //zt 新增isUnique，写在索引文件的header中
+    RC create(const char *file_name, const std::vector<FieldMeta> &field_metas, int isUnique = 0); //zt 新增isUnique，写在索引文件的header中
 
-  /**
+    /**
    * 打开名为fileName的索引文件。
    * 如果方法调用成功，则indexHandle为指向被打开的索引句柄的指针。
    * 索引句柄用于在索引中插入或删除索引项，也可用于索引的扫描
    */
-  RC open(const char *file_name);
+    RC open(const char *file_name);
 
-  /**
+    /**
    * 关闭句柄indexHandle对应的索引文件
    */
-  RC close();
+    RC close();
 
-  /**
+    /**
    * 此函数向IndexHandle对应的索引中插入一个索引项。
    * 参数pData指向要插入的属性值，参数rid标识该索引项对应的元组，
    * 即向索引中插入一个值为（*pData，rid）的键值对
    */
-  RC insert_entry(const char *pkey, const RID *rid);
+    RC insert_entry(const char *pkey, const RID *rid);
 
-  /**
+    /**
    * 从IndexHandle句柄对应的索引中删除一个值为（*pData，rid）的索引项
    * @return RECORD_INVALID_KEY 指定值不存在
    */
-  RC delete_entry(const char *pkey, const RID *rid);
+    RC delete_entry(const char *pkey, const RID *rid);
 
-  /**
+    /**
    * 获取指定值的record
    * @param rid  返回值，记录记录所在的页面号和slot
    */
-  RC get_entry(const char *pkey, RID *rid);
+    RC get_entry(const char *pkey, RID *rid);
 
-  RC sync();
+    RC sync();
 public:
   RC print();
   RC print_tree();
@@ -124,6 +138,11 @@ private:
   friend class BplusTreeScanner;
 };
 
+struct CompareObject{
+  CompOp comp_op_ = NO_OP;                      // 用于比较的操作符
+  const char *value_ = nullptr;		              // 与属性行比较的值
+};
+
 class BplusTreeScanner {
 public:
   BplusTreeScanner(BplusTreeHandler &index_handler);
@@ -133,7 +152,8 @@ public:
    * compOp和*value指定比较符和比较值，indexScan为初始化后的索引扫描结构指针
    * 没有带两个边界的范围扫描
    */
-  RC open(CompOp comp_op, const char *value);
+// zt  修改为多列
+  RC open(std::vector<CompareObject> &compare_objects);
 
   /**
    * 用于继续索引扫描，获得下一个满足条件的索引项，
@@ -160,8 +180,10 @@ private:
 private:
   BplusTreeHandler   & index_handler_;
   bool opened_ = false;
-  CompOp comp_op_ = NO_OP;                      // 用于比较的操作符
-  const char *value_ = nullptr;		              // 与属性行比较的值
+
+  std::vector<CompareObject> compare_objects_;
+//   CompOp comp_op_ = NO_OP;                      // 用于比较的操作符
+//   const char *value_ = nullptr;		              // 与属性行比较的值
   int num_fixed_pages_ = -1;                    // 固定在缓冲区中的页，与指定的页面固定策略有关
   int pinned_page_count_ = 0;                   // 实际固定在缓冲区的页面数
   BPPageHandle page_handles_[BP_BUFFER_SIZE];   // 固定在缓冲区页面所对应的页面操作列表
