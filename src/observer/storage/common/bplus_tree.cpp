@@ -1682,8 +1682,9 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
     node = get_index_node(pdata);
     for(i = 0; i < node->key_num; i++){
         // zt 只比较key 不比较rid
-        tmp = CmpKey(file_header_.attrs, file_header_.attr_num,key,node->keys+(i*file_header_.key_length),1);
-    //   tmp=CompareKey(node->keys+i*file_header_.key_length,key,file_header_.attr_type,file_header_.attr_length);
+        // 只比较最左字段
+        // tmp = CmpKey(file_header_.attrs, 1 ,key,node->keys+(i*file_header_.key_length),1);
+      tmp=CompareKey(node->keys+i*file_header_.key_length,key, file_header_.attrs[0].attr_type,file_header_.attrs[0].attr_length);
       if(compop == EQUAL_TO ||compop == GREAT_EQUAL){
         if(tmp>=0){
           rc = disk_buffer_pool_->get_page_num(&page_handle, page_num);
