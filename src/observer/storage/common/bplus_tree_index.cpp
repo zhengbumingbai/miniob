@@ -103,6 +103,7 @@ RC BplusTreeIndex::delete_entry(const char *record, const RID *rid) {
     }
     RC rc = index_handler_.delete_entry(pkey, rid);
     free(pkey);
+    
     return rc;
 }
 

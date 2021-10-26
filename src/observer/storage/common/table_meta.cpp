@@ -117,9 +117,9 @@ const FieldMeta *TableMeta::field(const char *name) const {
   if (nullptr == name) {
     return nullptr;
   }
-  LOG_DEBUG("name: %s",name);
+//   LOG_DEBUG("name: %s",name);
   for (const FieldMeta &field : fields_) {
-    LOG_DEBUG("FIELD NAME: %s, name: %s", field.name(), name);
+    // LOG_DEBUG("FIELD NAME: %s, name: %s", field.name(), name);
     if (0 == strcmp(field.name(), name)) {
       return &field;
     }

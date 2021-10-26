@@ -968,7 +968,7 @@ RC Table::update_entry_of_indexes(const char *old_record, const char *record,
                                   const RID &rid, bool error_on_not_exists) {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
-    // LOG_DEBUG("DELETE INDEX ENTRY.");
+    LOG_DEBUG("DELETE INDEX ENTRY.");
     // LOG_DEBUG("OLD RECORD: ");
     // for (int i = 0; i < table_meta_.fields().size(); i++)
     // {
@@ -999,7 +999,7 @@ RC Table::update_entry_of_indexes(const char *old_record, const char *record,
         rc = RC::SUCCESS;
       }
     }
-    // LOG_DEBUG("INSERT INDEX ENTRY.");
+    LOG_DEBUG("INSERT INDEX ENTRY.");
     // LOG_DEBUG("NEW RECORD: ");
     // for (int i = 0; i < table_meta_.fields().size(); i++)
     // {

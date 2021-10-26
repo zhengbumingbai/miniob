@@ -81,6 +81,7 @@ RC BplusTreeHandler::create(const char *file_name, const std::vector<FieldMeta> 
 //   file_header->attr_length = attr_length;
   file_header->attr_num = field_metas.size();
    
+//    file_header 和file_header_用混了 wctmd
   for (size_t i = 0; i < field_metas.size(); i++)
   {
       file_header->attrs[i].attr_length = field_metas[i].len();
@@ -88,9 +89,9 @@ RC BplusTreeHandler::create(const char *file_name, const std::vector<FieldMeta> 
   }
   
   int attr_length = 0;
-  for (int i = 0; i < file_header_.attr_num; i++)
+  for (int i = 0; i < file_header->attr_num; i++)
   {
-      attr_length += file_header_.attrs[i].attr_length;
+      attr_length += file_header->attrs[i].attr_length;
   }
 
   file_header->key_length = attr_length + sizeof(RID); //zt 属性长度+记录长度
@@ -197,7 +198,7 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
     case INTS: {
       i1 = *(int *) pdata;
       i2 = *(int *) pkey;
-      LOG_DEBUG("COMPARE %d : %d",i1,i2);
+    //   LOG_DEBUG("COMPARE %d : %d",i1,i2);
       if (i1 > i2)
         return 1;
       if (i1 < i2)
@@ -209,14 +210,14 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
     case FLOATS: {
       f1 = *(float *) pdata;
       f2 = *(float *) pkey;
-      LOG_DEBUG("COMPARE %.2f : %.2f",f1,f2);
+    //   LOG_DEBUG("COMPARE %.2f : %.2f",f1,f2);
       return float_compare(f1, f2);
     }
       break;
     case CHARS: {
       s1 = pdata;
       s2 = pkey;
-      LOG_DEBUG("COMPARE %s : %s",s1,s2);
+    //   LOG_DEBUG("COMPARE %s : %s",s1,s2);
       return strncmp(s1, s2, attr_length);
     }
       break;
@@ -248,17 +249,17 @@ int CmpKey(IndexAttrInfo *attr,int attr_num, const char *pdata, const char *pkey
     }
 
 //   int result = CompareKey(pdata, pkey, attr_type, attr_length);
-  if (0 != result) {
-    return result;
-  }
-//   如果是唯一索引就不需要考虑 rid了 直接返回key的比较
-  if(isUnique) {
-      return 0;
-  }else {
-    RID *rid1 = (RID *) (key_in_page);
-    RID *rid2 = (RID *) (target);
-    return CmpRid(rid1, rid2);
-  }
+    if (0 != result) {
+        return result;
+    }
+    //   如果是唯一索引就不需要考虑 rid了 直接返回key的比较
+    if(isUnique) {
+        return 0;
+    }else {
+        RID *rid1 = (RID *) (key_in_page);
+        RID *rid2 = (RID *) (target);
+        return CmpRid(rid1, rid2);
+    }
 }
 
 // zt重构查找叶节点 pkey变成多个key共同组成的
@@ -911,6 +912,8 @@ RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
 
     // zt 插入到叶子节点中
     rc=insert_into_leaf(leaf_page,key,rid);
+    LOG_DEBUG("After insert in leaf.");
+    print_tree();
     if(rc!=SUCCESS){
       free(key);
       return rc;
@@ -1548,6 +1551,8 @@ RC BplusTreeHandler::delete_entry(const char *data, const RID *rid) {
     return rc;
   }
   rc=delete_entry_internal(leaf_page,pkey);
+  LOG_DEBUG("After delete in leaf.");
+    print_tree();
   if(rc!=SUCCESS){
     free(pkey);
     return rc;
@@ -1598,7 +1603,8 @@ RC BplusTreeHandler::print_tree() {
   while(page_num!=0){
     for(i=0;i<node->key_num;i++){
       pkey=node->keys+i*file_header_.key_length;
-      printf("key : %d,rids (page_num:%d slotnum %d)\n",*(int *)pkey,node->rids[i].page_num,node->rids[i].slot_num);
+      printf("key : %d, rids in key (page_num:%d slotnum %d), rids (page_num:%d slotnum %d)\n",*(int *)pkey,
+      (*(RID *)(pkey + file_header_.key_length - sizeof(RID))).page_num,(*(RID *)(pkey+file_header_.key_length - sizeof(RID))).slot_num,node->rids[i].page_num,node->rids[i].slot_num);
     }
     printf("next node:%d\n",page_num);
     rc = disk_buffer_pool_->unpin_page(&page_handle);
