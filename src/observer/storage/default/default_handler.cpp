@@ -129,7 +129,7 @@ RC DefaultHandler::drop_table(const char *dbname, const char *relation_name) {
 }
 
 // 封装一层自己的create_index
-// TODO 索引开发
+// 索引开发
 RC DefaultHandler::create_index(Trx *trx, const char *dbname,
                                 const CreateIndex *create_index) {
   const char *datebase_name = dbname;
@@ -148,8 +148,8 @@ RC DefaultHandler::create_index(Trx *trx, const char *dbname,
     LOG_DEBUG("Create Index Attr name: %s", create_index->attribute_name[i]);
   }
 
-  // TODO 实现唯一索引与多列
-//   TODO 唯一索引文件创建失败未删除
+  //  实现唯一索引与多列
+//   TODO 唯一索引文件创建失败未删除 base_dir 不对
   Table *table = find_table(dbname, table_name);
   if (nullptr == table) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
@@ -157,7 +157,7 @@ RC DefaultHandler::create_index(Trx *trx, const char *dbname,
   RC rc = table->create_index(trx, index_name, attribute_name, isUnique);
   if (rc != RC::SUCCESS) {
     std::string index_file =
-        index_data_file(base_dir_.c_str(), table_name, index_name);
+        index_data_file(table->base_dir().c_str(), table_name, index_name);
     if (file_exist(index_file.c_str())) {
       remove(index_file.c_str());
     } else {

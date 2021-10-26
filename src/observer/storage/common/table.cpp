@@ -239,6 +239,10 @@ RC Table::destroy_table() {
   return rc;
 }
 
+std::string Table::base_dir(){
+    return base_dir_;
+}
+
 RC Table::commit_insert(Trx *trx, const RID &rid) {
   Record record;
   RC rc = record_handler_->get_record(&rid, &record);
