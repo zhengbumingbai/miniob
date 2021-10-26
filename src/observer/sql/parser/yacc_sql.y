@@ -86,6 +86,7 @@ ParserContext *get_context(yyscan_t scanner)
         STRING_T
         FLOAT_T
         DATE_T
+        TEXT_T
         HELP
         EXIT
         DOT //QUOTE
@@ -113,6 +114,7 @@ ParserContext *get_context(yyscan_t scanner)
 		NOT
 		NULLTOKEN
 		NULLABLE
+        TEXT
 
 %union {
   struct _Attr *attr;
@@ -311,6 +313,7 @@ type:
        | FLOAT_T { $$=FLOATS; }
     //    新增DATE_T 属性的token
        | DATE_T { $$=DATES; }
+       | TEXT_T {$$=TEXTS;}
        ;
 ID_get:
 	ID 

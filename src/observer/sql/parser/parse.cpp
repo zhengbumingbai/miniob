@@ -203,6 +203,12 @@ void value_init_date(Value *value, const char *v)
     memcpy(value->data, &time, sizeof(int));
 }
 
+void value_init_text(Value *value, const char *v)
+{
+    value->type = TEXTS;
+    value->data = value->data = strdup(v);
+}
+
 void value_destroy(Value *value) {
   value->type = UNDEFINED;
   free(value->data);

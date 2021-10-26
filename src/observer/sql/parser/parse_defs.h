@@ -22,12 +22,13 @@ See the Mulan PSL v2 for more details. */
 #define MAX_ATTR_NAME 20
 #define MAX_ERROR_MESSAGE 20
 #define MAX_DATA 50
+#define TEXT_SIZE 4096
 
 //聚合类型
 typedef enum { AGGR_UNDEFINED, COUNT, AVG, MAX, MIN } AggrType;
 
 //属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, TEXTS } AttrType;
 
 //属性值
 typedef struct _Value {
