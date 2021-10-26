@@ -45,4 +45,22 @@ private:
   std::vector<DefaultConditionFilter *> condition_filters_;
 };
 
+class SelectAggregationExeNode : public ExecutionNode {
+public:
+  SelectAggregationExeNode();
+  virtual ~SelectAggregationExeNode();
+
+  RC init(Trx *trx, Table *table, TupleSchema && tuple_schema, std::vector<DefaultConditionFilter *> &&condition_filters);
+  void add_aggr_attr(const AggrAttr* attr) {
+    aggr_attrs_.push_back(attr);
+  }
+  RC execute(TupleSet &tuple_set) override;
+private:
+  Trx *trx_ = nullptr;
+  Table  * table_;
+  TupleSchema  tuple_schema_;
+  std::vector<DefaultConditionFilter *> condition_filters_;
+  std::vector<const AggrAttr *> aggr_attrs_;
+};
+
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_

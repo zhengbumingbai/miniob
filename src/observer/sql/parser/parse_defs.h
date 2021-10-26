@@ -23,11 +23,31 @@ See the Mulan PSL v2 for more details. */
 #define MAX_ERROR_MESSAGE 20
 #define MAX_DATA 50
 
+//聚合类型
+typedef enum { AGGR_UNDEFINED, COUNT, AVG, MAX, MIN } AggrType;
+
+//属性值类型
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
+
+//属性值
+typedef struct _Value {
+  AttrType type;  // type of value
+  void *data;     // value
+} Value;
+
 //属性结构体
 typedef struct {
   char *relation_name;   // relation name (may be NULL) 表名
   char *attribute_name;  // attribute name              属性名
 } RelAttr;
+
+typedef struct {
+  char *relation_name;   // relation name (may be NULL) 表名
+  char *attribute_name;  // attribute name              属性名
+  Value constant_value;  // 常数类型
+  int is_constant;       // 如果聚合括号内是常数
+  AggrType aggr_type;    // 聚合类型
+} AggrAttr;
 
 typedef enum {
   EQUAL_TO,     //"="     0
@@ -38,15 +58,6 @@ typedef enum {
   GREAT_THAN,   //">"     5
   NO_OP
 } CompOp;
-
-//属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
-
-//属性值
-typedef struct _Value {
-  AttrType type;  // type of value
-  void *data;     // value
-} Value;
 
 typedef struct _Condition {
   int left_is_attr;    // TRUE if left-hand side is an attribute
@@ -68,6 +79,8 @@ typedef struct {
   char *    relations[MAX_NUM];     // relations in From clause
   size_t    condition_num;          // Length of conditions in Where clause
   Condition conditions[MAX_NUM];    // conditions in Where clause
+  AggrAttr  aggr_attr[MAX_NUM];     // attrs of aggregation
+  size_t    aggr_num;               // Length of aggregation
 } Selects;
 
 // 新增recore类型
@@ -105,6 +118,7 @@ typedef struct {
   char *name;     // Attribute name
   AttrType type;  // Type of attribute
   size_t length;  // Length of attribute
+  int nullable;   // is nullable
 } AttrInfo;
 
 // struct of craete_table
@@ -186,6 +200,8 @@ typedef struct Query {
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
+void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op, const char *relation_name, const char *attribute_name);
+void aggr_attr_destory(AggrAttr *aggr_attr);
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
@@ -213,13 +229,14 @@ void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr
                     int right_is_attr, RelAttr *right_attr, Value *right_value);
 void condition_destroy(Condition *condition);
 
-void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length);
+void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, int nullable);
 void attr_info_destroy(AttrInfo *attr_info);
 
 void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
+void selects_append_aggr_attribute(Selects *selects, AggrAttr *aggr_attr);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record records[], size_t record_num);

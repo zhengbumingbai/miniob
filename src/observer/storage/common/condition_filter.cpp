@@ -204,7 +204,8 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
   return cmp_result;  // should not go here
 }
 
-CompositeConditionFilter::~CompositeConditionFilter() {
+CompositeConditionFilter::~CompositeConditionFilter()
+{
   if (memory_owner_) {
     delete[] filters_;
     filters_ = nullptr;

@@ -512,7 +512,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit,
   if (index_scanner != nullptr) {
     RC rc = scan_record_by_index(trx, index_scanner, filter, limit, context,
                                 record_reader);
-    if(rc == RC::RECORD_NO_MORE_IDX_IN_MEM || rc == RC::RECORD_EOF) return RC::SUCCESS;
+    if(rc == RC::RECORD_NO_MORE_IDX_IN_MEM || rc == RC::RECORD_EOF || rc == RC::SUCCESS) return RC::SUCCESS;
   }
 
   RC rc = RC::SUCCESS;
@@ -1119,9 +1119,7 @@ IndexScanner *Table::find_index_for_scan(const ConditionFilter *filter) {
     return find_index_for_scan(*default_condition_filter);
   }
 
-//zt 查看是否是多个条件过滤
-  const CompositeConditionFilter *composite_condition_filter =
-      dynamic_cast<const CompositeConditionFilter *>(filter);
+  const CompositeConditionFilter *composite_condition_filter = dynamic_cast<const CompositeConditionFilter *>(filter);
   if (composite_condition_filter != nullptr) {
     // int filter_num = composite_condition_filter->filter_num();
     // // zt 在每一个条件上进行查找索引，但是 目前处理的方法是找到第一个符合条件的索引就返回 

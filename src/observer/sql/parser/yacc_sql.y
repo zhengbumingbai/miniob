@@ -105,7 +105,14 @@ ParserContext *get_context(yyscan_t scanner)
         LE
         GE
         NE
+		AGGR_COUNT
+		AGGR_MAX
+		AGGR_MIN
+		AGGR_AVG
         UNIQUE //zt UNIQUE
+		NOT
+		NULLTOKEN
+		NULLABLE
 
 %union {
   struct _Attr *attr;
@@ -263,7 +270,7 @@ attr_def:
     ID_get type LBRACE number RBRACE 
 		{
 			AttrInfo attribute;
-			attr_info_init(&attribute, CONTEXT->id, $2, $4);
+			attr_info_init(&attribute, CONTEXT->id, $2, $4, 0);
 			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute);
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].name =(char*)malloc(sizeof(char));
 			// strcpy(CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].name, CONTEXT->id); 
@@ -274,7 +281,7 @@ attr_def:
     |ID_get type
 		{
 			AttrInfo attribute;
-			attr_info_init(&attribute, CONTEXT->id, $2, 4);
+			attr_info_init(&attribute, CONTEXT->id, $2, 4, 0);
 			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute);
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].name=(char*)malloc(sizeof(char));
 			// strcpy(CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].name, CONTEXT->id); 
@@ -282,6 +289,18 @@ attr_def:
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].length=4; // default attribute length
 			CONTEXT->value_length++;
 		}
+	|ID_get type NOT NULLTOKEN {
+			AttrInfo attribute;
+			attr_info_init(&attribute, CONTEXT->id, $2, 4, 0);
+			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute);
+			CONTEXT->value_length++;
+	}
+	|ID_get type NULLABLE {
+			AttrInfo attribute;
+			attr_info_init(&attribute, CONTEXT->id, $2, 4, 1);
+			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute);
+			CONTEXT->value_length++;
+	}
     ;
 number:
 		NUMBER {$$ = $1;}
@@ -353,7 +372,7 @@ value:
   		value_init_date(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
     ;
-    
+
 delete:		/*  delete 语句的语法解析树*/
     DELETE FROM ID where SEMICOLON 
 		{
@@ -409,7 +428,171 @@ select_attr:
 			relation_attr_init(&attr, $1, $3);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
+	| aggr_list {
+
+	}
     ;
+
+aggr_list:
+	/* empty */
+	| COMMA aggr_list {
+
+	}
+	| AGGR_COUNT LBRACE STAR RBRACE aggr_list {
+			AggrAttr attr;
+			/*第二个参数refer to AggrType */
+			aggr_attr_init(&attr, 1, NULL, "*");
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_COUNT LBRACE ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 1, NULL, $3);
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_COUNT LBRACE ID DOT ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 1, $3, $5);
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MAX LBRACE STAR RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 3, NULL, "*");
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MAX LBRACE ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 3, NULL, $3);
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MAX LBRACE ID DOT ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 3, $3, $5);
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE STAR RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 4, NULL, "*");
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 4, NULL, $3);
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE ID DOT ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 4, $3, $5);
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_AVG LBRACE STAR RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 2, NULL, "*");
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_AVG LBRACE ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 2, NULL, $3);
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_AVG LBRACE ID DOT ID RBRACE aggr_list {
+			AggrAttr attr;
+			aggr_attr_init(&attr, 2, $3, $5);
+			attr.is_constant = 0;
+			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_COUNT LBRACE NUMBER RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 1, NULL, NULL);
+		value_init_integer(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_COUNT LBRACE FLOAT RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 1, NULL, NULL);
+		value_init_float(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_COUNT LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 1, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MAX LBRACE NUMBER RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 3, NULL, NULL);
+		value_init_integer(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	} 
+	| AGGR_MAX LBRACE FLOAT RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 3, NULL, NULL);
+		value_init_float(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MAX LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 3, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE NUMBER RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 4, NULL, NULL);
+		value_init_integer(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	} 
+	| AGGR_MIN LBRACE FLOAT RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 4, NULL, NULL);
+		value_init_float(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 4, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_AVG LBRACE NUMBER RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 2, NULL, NULL);
+		value_init_integer(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	} 
+	| AGGR_AVG LBRACE FLOAT RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 2, NULL, NULL);
+		value_init_float(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+    ;
+
 attr_list:
     /* empty */
     | COMMA ID attr_list {

@@ -22,6 +22,7 @@ class RecordFileHandler;
 class ConditionFilter;
 class DefaultConditionFilter;
 class CompositeConditionFilter;
+class AggregationConditionFilter;
 struct Record;
 struct RID;
 class Index;
@@ -83,6 +84,8 @@ private:
   IndexScanner *find_index_for_scan(const DefaultConditionFilter &filter);
 //   针对复合查询返回一个最合适的索引
   IndexScanner *find_index_for_scan(const CompositeConditionFilter &filter);
+  IndexScanner *find_index_for_scan(const AggregationConditionFilter &filter);
+
   RC insert_record(Trx *trx, Record *record);
   RC delete_record(Trx *trx, Record *record);
   RC update_record(Trx *trx, Record *old_record, Record *record); //第三题

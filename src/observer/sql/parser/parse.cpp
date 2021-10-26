@@ -22,6 +22,32 @@ RC parse(char *st, Query *sqln);
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op, const char *relation_name, const char *attribute_name) {
+  aggr_attr->aggr_type = aggr_op;
+  if (relation_name != nullptr) {
+    aggr_attr->relation_name = strdup(relation_name);
+  } else {
+    aggr_attr->relation_name = nullptr;
+  }
+  if (attribute_name != nullptr) {
+    aggr_attr->attribute_name = strdup(attribute_name);
+  } else {
+    aggr_attr->attribute_name = nullptr;
+  }
+  
+}
+
+void aggr_attr_destory(AggrAttr *aggr_attr) {
+  free(aggr_attr->relation_name);
+  free(aggr_attr->attribute_name);
+  if(aggr_attr->is_constant) {
+    value_destroy(&aggr_attr->constant_value);
+  }
+  aggr_attr->relation_name = nullptr;
+  aggr_attr->attribute_name = nullptr;
+}
+
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name) {
   if (relation_name != nullptr) {
     relation_attr->relation_name = strdup(relation_name);
@@ -214,10 +240,11 @@ void condition_destroy(Condition *condition) {
   }
 }
 
-void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length) {
+void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, int nullable=0) {
   attr_info->name = strdup(name);
   attr_info->type = type;
   attr_info->length = length;
+  attr_info->nullable = nullable;
 }
 void attr_info_destroy(AttrInfo *attr_info) {
   free(attr_info->name);
@@ -228,6 +255,11 @@ void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr) {
   selects->attributes[selects->attr_num++] = *rel_attr;
 }
+
+void selects_append_aggr_attribute(Selects *selects, AggrAttr *aggr_attr) {
+  selects->aggr_attr[selects->aggr_num++] = *aggr_attr;
+}
+
 void selects_append_relation(Selects *selects, const char *relation_name) {
   selects->relations[selects->relation_num++] = strdup(relation_name);
 }
@@ -251,6 +283,10 @@ void selects_destroy(Selects *selects) {
     selects->relations[i] = NULL;
   }
   selects->relation_num = 0;
+
+  for (size_t i = 0; i < selects->aggr_num; i++) {
+    aggr_attr_destory(&selects->aggr_attr[i]);
+  }
 
   for (size_t i = 0; i < selects->condition_num; i++) {
     condition_destroy(&selects->conditions[i]);

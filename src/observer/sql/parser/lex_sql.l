@@ -76,7 +76,15 @@ QUOTE            [\'\"]
 [Ll][Oo][Aa][Dd]			                   RETURN_TOKEN(LOAD);
 [Dd][Aa][Tt][Aa]	                       RETURN_TOKEN(DATA);
 [Ii][Nn][Ff][Ii][Ll][Ee]                 RETURN_TOKEN(INFILE);
+[Cc][Oo][Uu][Nn][Tt]                 RETURN_TOKEN(AGGR_COUNT);
+[Mm][Aa][Xx]              RETURN_TOKEN(AGGR_MAX);
+[Mm][Ii][Nn]              RETURN_TOKEN(AGGR_MIN);
+[Aa][Vv][Gg]              RETURN_TOKEN(AGGR_AVG);
 [Uu][Nn][Ii][Qq][Uu][Ee]                 RETURN_TOKEN(UNIQUE); // zt 新增UNIQUE 关键字 ，支持唯一索引
+[Nn][Uu][Ll][Ll]			RETURN_TOKEN(NULLTOKEN);
+[Nn][Oo][Tt]				RETURN_TOKEN(NOT);
+[Nn][Uu][Ll][Ll][Aa][Bb][Ll][Ee]	RETURN_TOKEN(NULLABLE);
+
 {ID}							                       yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 "("								                       RETURN_TOKEN(LBRACE);
 ")"								                       RETURN_TOKEN(RBRACE);
