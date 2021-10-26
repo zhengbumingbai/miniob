@@ -213,9 +213,9 @@ public:
   AggregationRecordConverter(Table *table, TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
 
   ~AggregationRecordConverter(){
-    for (TupleValue* aggr_result : aggr_results_) {
-      delete aggr_result;
-    }
+    // for (TupleValue* aggr_result : aggr_results_) {
+    //   delete aggr_result;
+    // }
     aggr_results_.resize(0);
   }
   void read_record(const char *record);
@@ -227,7 +227,6 @@ private:
   std::vector<const AggrAttr *> &aggr_attrs_;
   std::vector<TupleValue*> aggr_results_;
   std::vector<int> line_counts_;
-  bool first_read_;
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_TUPLE_H_

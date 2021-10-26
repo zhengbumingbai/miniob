@@ -113,6 +113,7 @@ ParserContext *get_context(yyscan_t scanner)
 		NOT
 		NULLTOKEN
 		NULLABLE
+		ISTOKEN
 
 %union {
   struct _Attr *attr;
@@ -371,6 +372,9 @@ value:
 			$1 = substr($1,1,strlen($1)-2);
   		value_init_date(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
+	|NULLTOKEN {
+		value_init_null(&CONTEXT->values[CONTEXT->value_length++]);
+	}
     ;
 
 delete:		/*  delete 语句的语法解析树*/
@@ -783,6 +787,8 @@ comOp:
     | LE { CONTEXT->comp = LESS_EQUAL; }
     | GE { CONTEXT->comp = GREAT_EQUAL; }
     | NE { CONTEXT->comp = NOT_EQUAL; }
+	| ISTOKEN { CONTEXT->comp = IS; }
+	| ISTOKEN NOT { CONTEXT->comp = ISNOT; }
     ;
 
 load_data:

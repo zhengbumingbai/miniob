@@ -350,10 +350,14 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
         LOG_DEBUG("INSERT DATES TYPE INVAILD");
       return RC::RECORD;
     }
-
-    if (field->type() != value.type) {
+    if (field->type() != value.type && value.type != AttrType::NULLFIELD) {
       LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
                 field->name(), field->type(), value.type);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+    if (!field->nullable() && value.type == AttrType::NULLFIELD) {
+      LOG_ERROR("Fieid is not nullable. Invalid value type. field name=%s, type=%d, nullable=%d, but given=%d",
+                field->name(), field->type(), field->nullable(), value.type);
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     }
   }
@@ -365,7 +369,15 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
-    memcpy(record + field->offset(), value.data, field->len());
+    
+    if(value.type != AttrType::NULLFIELD) {
+      int8_t is_null = 0;
+      memcpy(record + field->offset(), value.data, field->len()-1);
+      memcpy(record + field->offset()+field->len()-1, &is_null, 1);
+    } else {
+      int8_t is_null = 1;
+      memcpy(record + field->offset()+field->len()-1, &is_null, 1);
+    }
   }
 
   record_out = record;
@@ -383,9 +395,19 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     if (std::string(field->name()) == std::string(attribute_name)) {
       attribute_loc = i;
-      if (field->type() != value->type) {
+      // zt 校验UNIX时间戳是否合法
+      if (value->type == DATES && *(int *)value->data == INT32_MIN) {
+          LOG_DEBUG("INSERT DATES TYPE INVAILD");
+        return RC::RECORD;
+      }
+      if (field->type() != value->type && value->type != AttrType::NULLFIELD) {
         LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
                   field->name(), field->type(), value->type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+      if (!field->nullable() && value->type == AttrType::NULLFIELD) {
+        LOG_ERROR("Fieid is not nullable. Invalid value type. field name=%s, type=%d, nullable=%d, but given=%d",
+                  field->name(), field->type(), field->nullable(), value->type);
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
       }
     }
@@ -404,7 +426,14 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
   // 复制新值
   const FieldMeta *field =
       table_meta_.field(attribute_loc + normal_field_start_index);
-  memcpy(record + field->offset(), value->data, field->len());
+  if(value->type != AttrType::NULLFIELD) {
+      int8_t is_null = 0;
+      memcpy(record + field->offset(), value->data, field->len()-1);
+      memcpy(record + field->offset()+field->len()-1, &is_null, 1);
+    } else {
+      int8_t is_null = 1;
+      memcpy(record + field->offset()+field->len()-1, &is_null, 1);
+    }
 
   record_out = record;
   return RC::SUCCESS;

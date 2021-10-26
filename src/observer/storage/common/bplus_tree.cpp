@@ -165,6 +165,15 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
   int i1,i2;
   float f1,f2;
   const char *s1,*s2;
+  if (pkey == nullptr) {
+    int8_t is_null = *(int8_t*)(pdata+attr_length-1);
+    if (is_null) {
+      // 独立识别码
+      return -3;
+    } else {
+      return -2;
+    }
+  }
   switch(attr_type){
     // zt  date类型的key  按照int处理
     case DATES:
@@ -1562,7 +1571,7 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
   RC rc;
   int i,tmp;
   RID rid;
-  if(compop == LESS_THAN || compop == LESS_EQUAL || compop == NOT_EQUAL){
+  if(compop == LESS_THAN || compop == LESS_EQUAL || compop == NOT_EQUAL || compop == ISNOT){
     rc = get_first_leaf_page(page_num);
     if(rc != SUCCESS){
       return rc;
@@ -1577,7 +1586,14 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
     LOG_ERROR("Failed to alloc memory for key. size=%d", file_header_.key_length);
     return RC::NOMEM;
   }
-  memcpy(pkey, key, file_header_.attr_length);
+  if (key == nullptr) {
+    // 给pkey填充因为需要用来找到叶子
+    memset(pkey, 0, file_header_.attr_length-1);
+    *(int8_t*)(pkey + file_header_.attr_length-1) = int8_t(1);
+  } else {
+    memcpy(pkey, key, file_header_.attr_length);
+  }
+  
   memcpy(pkey + file_header_.attr_length, &rid, sizeof(RID));
 
   rc = find_leaf(pkey, &leaf_page);
@@ -1618,6 +1634,20 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
       }
       if(compop == GREAT_THAN){
         if(tmp > 0){
+          rc = disk_buffer_pool_->get_page_num(&page_handle, page_num);
+          if(rc!=SUCCESS){
+            return rc;
+          }
+          *rididx=i;
+          rc = disk_buffer_pool_->unpin_page(&page_handle);
+          if(rc!=SUCCESS){
+            return rc;
+          }
+          return SUCCESS;
+        }
+      }
+      if (compop == IS) {
+        if(tmp == -3){
           rc = disk_buffer_pool_->get_page_num(&page_handle, page_num);
           if(rc!=SUCCESS){
             return rc;
@@ -1704,7 +1734,12 @@ RC BplusTreeScanner::open(CompOp comp_op,const char *value) {
     LOG_ERROR("Failed to alloc memory for value. size=%d", index_handler_.file_header_.attr_length);
     return RC::NOMEM;
   }
-  memcpy(value_copy, value, index_handler_.file_header_.attr_length);
+  if (value == nullptr) {
+    // 不填充value_，因为后面才知道，避免EQUAL_TO走得通
+    value_copy = nullptr;
+  } else {
+    memcpy(value_copy, value, index_handler_.file_header_.attr_length);
+  }
   value_ = value_copy; // free value_
   rc = index_handler_.find_first_index_satisfied(comp_op, value, &next_page_num_, &index_in_node_);
   if(rc != SUCCESS){
@@ -1726,7 +1761,9 @@ RC BplusTreeScanner::close() {
   if (!opened_) {
     return RC::RECORD_SCANCLOSED;
   }
-  free((void *)value_);
+  if (value_ != nullptr) {
+    free((void *)value_);
+  }
   value_ = nullptr;
   opened_ = false;
   return RC::SUCCESS;
@@ -1832,6 +1869,25 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
     return true;
   }
 
+  if (value_ == nullptr) {
+    if(comp_op_ == CompOp::IS) {
+      int8_t is_null = *(int8_t*)(pkey+index_handler_.file_header_.attr_length-1);
+      if (is_null) {
+        return true;
+      } else {
+        return false;
+      }
+    } else if (comp_op_ == CompOp::ISNOT) {
+      int8_t is_null = *(int8_t*)(pkey+index_handler_.file_header_.attr_length-1);
+      if (!is_null) {
+        return true;
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
   AttrType  attr_type = index_handler_.file_header_.attr_type;
   switch(attr_type){
     case DATES:

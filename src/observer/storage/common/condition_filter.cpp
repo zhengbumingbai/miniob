@@ -38,7 +38,7 @@ DefaultConditionFilter::~DefaultConditionFilter() {}
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right,
                                 AttrType attr_type, CompOp comp_op) {
-  if (attr_type < CHARS || attr_type > DATES) {
+  if (attr_type < CHARS || attr_type > NULLFIELD) {
     LOG_ERROR("Invalid condition with unsupported attribute type: %d",
               attr_type);
     return RC::INVALID_ARGUMENT;
@@ -135,7 +135,10 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition) {
   // NOTE：这里没有实现不同类型的数据比较，比如整数跟浮点数之间的对比
   // 但是选手们还是要实现。这个功能在预选赛中会出现
   if (type_left != type_right) {
-    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    if (type_left != NULLFIELD && type_right != NULLFIELD) {
+      LOG_DEBUG("Type left not the same as type right");
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
   }
 
   return init(left, right, type_left, condition.comp);
@@ -146,13 +149,23 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
   char *right_value = nullptr;
 
   if (left_.is_attr) {  // value
-    left_value = (char *)(rec.data + left_.attr_offset);
+    int8_t is_null = *(int8_t*)(rec.data + left_.attr_offset + left_.attr_length - 1);
+    if (is_null) {
+      left_value = nullptr;
+    } else {
+      left_value = (char *)(rec.data + left_.attr_offset);
+    }
   } else {
     left_value = (char *)left_.value;
   }
 
   if (right_.is_attr) {
-    right_value = (char *)(rec.data + right_.attr_offset);
+    int8_t is_null = *(int8_t*)(rec.data + right_.attr_offset + right_.attr_length - 1);
+    if (is_null) {
+      right_value = nullptr;
+    } else {
+      right_value = (char *)(rec.data + right_.attr_offset);
+    }
   } else {
     right_value = (char *)right_.value;
   }
@@ -161,6 +174,9 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
   switch (attr_type_) {
     case CHARS: {  // 字符串都是定长的，直接比较
       // 按照C字符串风格来定
+      if (nullptr == left_value || nullptr == right_value ) {
+        break;
+      }
       cmp_result = strcmp(left_value, right_value);
     } break;
     // DATES 底层于INTS采取相同存储方式
@@ -168,11 +184,17 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
     case INTS: {
       // 没有考虑大小端问题
       // 对int和float，要考虑字节对齐问题,有些平台下直接转换可能会跪
+      if (nullptr == left_value || nullptr == right_value ) {
+        break;
+      }
       int left = *(int *)left_value;
       int right = *(int *)right_value;
       cmp_result = left - right;
     } break;
     case FLOATS: {
+      if (nullptr == left_value || nullptr == right_value ) {
+        break;
+      }
       float left = *(float *)left_value;
       float right = *(float *)right_value;
       cmp_result = (int)(left - right);
@@ -184,18 +206,48 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
 
   switch (comp_op_) {
     case EQUAL_TO:
+      if (nullptr == left_value || nullptr == right_value ) {
+        return false;
+      }
       return 0 == cmp_result;
     case LESS_EQUAL:
+      if (nullptr == left_value || nullptr == right_value ) {
+        return false;
+      }
       return cmp_result <= 0;
     case NOT_EQUAL:
+      if (nullptr == left_value || nullptr == right_value ) {
+        return false;
+      }
       return cmp_result != 0;
     case LESS_THAN:
+      if (nullptr == left_value || nullptr == right_value ) {
+        return false;
+      }
       return cmp_result < 0;
     case GREAT_EQUAL:
+      if (nullptr == left_value || nullptr == right_value ) {
+        return false;
+      }
       return cmp_result >= 0;
     case GREAT_THAN:
+      if (nullptr == left_value || nullptr == right_value ) {
+        return false;
+      }
       return cmp_result > 0;
-
+    case IS:
+      if (nullptr == left_value && nullptr == right_value ) {
+        return true;
+      } else {
+        return false;
+      }
+      
+    case ISNOT:
+      if (nullptr != left_value && nullptr == right_value ) {
+        return true;
+      } else {
+        return false;
+      }
     default:
       break;
   }

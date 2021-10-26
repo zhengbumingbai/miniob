@@ -21,6 +21,9 @@ See the Mulan PSL v2 for more details. */
 #include <ostream>
 #include "common/log/log.h"
 
+//属性值类型
+typedef enum { VALUETYPE_UNDEFINED, STRING, INT, FLOAT, DATE, NULLTYPE } ValueType;
+
 class TupleValue
 {
 public:
@@ -29,6 +32,7 @@ public:
 
     virtual void to_string(std::ostream &os) const = 0;
     virtual int compare(const TupleValue &other) const = 0;
+    virtual int type() const = 0;
 private:
 };
 
@@ -53,6 +57,11 @@ public:
     {
         const DateValue &int_other = (const DateValue &)other;
         return value_ - int_other.value_;
+    }
+
+    int type() const override
+    {
+        return ValueType::DATE;
     }
 
     bool bigger_than(const int other)
@@ -88,6 +97,11 @@ public:
     {
         const IntValue &int_other = (const IntValue &)other;
         return value_ - int_other.value_;
+    }
+
+    int type() const override
+    {
+        return ValueType::INT;
     }
 
     bool bigger_than(const int other)
@@ -156,6 +170,11 @@ public:
         return 0;
     }
 
+    int type() const override
+    {
+        return ValueType::FLOAT;
+    }
+
     bool bigger_than(const float other)
     {
         return value_ > other;
@@ -197,6 +216,11 @@ public:
         return strcmp(value_.c_str(), string_other.value_.c_str());
     }
 
+    int type() const override
+    {
+        return ValueType::STRING;
+    }
+
     std::string value() {
         return value_;
     }
@@ -206,6 +230,29 @@ public:
     }
 private:
     std::string value_;
+};
+
+class NullValue : public TupleValue
+{
+public:
+    explicit NullValue()
+    {
+    }
+
+    void to_string(std::ostream &os) const override
+    {
+        os << "null";
+    }
+
+    int compare(const TupleValue &other) const override
+    {
+        return false;
+    }
+
+    int type() const override
+    {
+        return ValueType::NULLTYPE;
+    }
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_VALUE_H_
