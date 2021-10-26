@@ -149,6 +149,7 @@ RC DefaultHandler::create_index(Trx *trx, const char *dbname,
   }
 
   // TODO 实现唯一索引与多列
+//   TODO 唯一索引文件创建失败未删除
   Table *table = find_table(dbname, table_name);
   if (nullptr == table) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
