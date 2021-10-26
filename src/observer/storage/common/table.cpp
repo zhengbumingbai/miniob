@@ -392,7 +392,7 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
 }
 
 RC Table::make_updated_record(const char *record_in, const char *attribute_name,
-                              const Value *value, char *&record_out) {
+                              const Value *value, char *&record_out,char *&copyed_old_record) {
   // 检查字段类型是否一致
   int value_num = table_meta_.field_num() - table_meta_.sys_field_num();
 
@@ -406,6 +406,9 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
         LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
                   field->name(), field->type(), value->type);
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }else{
+        //   找到了就break
+          break;
       }
     }
   }
@@ -418,7 +421,9 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
   // 复制原来所有字段的值
   int record_size = table_meta_.record_size();
   char *record = new char[record_size];
+  char *copied_record = new char[record_size];
   memcpy(record, record_in, record_size);
+  memcpy(copied_record, record_in, record_size);
 
   // 复制新值
   const FieldMeta *field =
@@ -426,6 +431,7 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
   memcpy(record + field->offset(), value->data, field->len());
 
   record_out = record;
+  copyed_old_record = copied_record;
   return RC::SUCCESS;
 }
 
@@ -733,17 +739,24 @@ class RecordUpdater {
 
   RC update_record(Record *old_record) {
     RC rc = RC::SUCCESS;
+
+
     Record *edited_record = new Record();
+    Record *copy_old_record = new Record();
     edited_record->rid = old_record->rid;
+    copy_old_record->rid = old_record->rid;
     rc = table_.make_updated_record(old_record->data, attribute_name_, value_,
-                                    edited_record->data);
+                                    edited_record->data, copy_old_record->data);
     if (rc != RC::SUCCESS) {
       return rc;
     }
-    rc = table_.update_record(trx_, old_record, edited_record);
+    rc = table_.update_record(trx_, copy_old_record, edited_record);
     if (rc == RC::SUCCESS) {
       updated_count_++;
     }
+
+    delete[] edited_record->data;
+    delete[] copy_old_record->data;
     return rc;
   }
 
@@ -951,30 +964,28 @@ RC Table::update_entry_of_indexes(const char *old_record, const char *record,
                                   const RID &rid, bool error_on_not_exists) {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
-    LOG_DEBUG("DELETE INDEX ENTRY.");
-    
-    LOG_DEBUG("OLD RECORD: ");
-    for (int i = 0; i < table_meta_.fields().size(); i++)
-    {
-        switch (table_meta_.fields()[i].type())
-        {
-        case INTS:
-            LOG_DEBUG("INT: %d", old_record+table_meta_.fields()[i].offset());
-            break;
-        case DATES:
-            LOG_DEBUG("DATE: %d", old_record+table_meta_.fields()[i].offset());
-            break;
-        case FLOATS:
-            LOG_DEBUG("FLOAT: %.2f", old_record+table_meta_.fields()[i].offset());
-            break;
-        case CHARS:
-            LOG_DEBUG("CHARS: %s", old_record + table_meta_.fields()[i].offset());
-            break;
-        
-        default:
-            break;
-        }
-    }
+    // LOG_DEBUG("DELETE INDEX ENTRY.");
+    // LOG_DEBUG("OLD RECORD: ");
+    // for (int i = 0; i < table_meta_.fields().size(); i++)
+    // {
+    //     switch (table_meta_.fields()[i].type())
+    //     {
+    //     case INTS:
+    //         LOG_DEBUG("INT: %d", *(int *)(old_record+table_meta_.fields()[i].offset()));
+    //         break;
+    //     case DATES:
+    //         LOG_DEBUG("DATE: %d", *(int *)(old_record+table_meta_.fields()[i].offset()));
+    //         break;
+    //     case FLOATS:
+    //         LOG_DEBUG("FLOAT: %.2f", *(float *)(old_record+table_meta_.fields()[i].offset()));
+    //         break;
+    //     case CHARS:
+    //         LOG_DEBUG("CHARS: %s", old_record + table_meta_.fields()[i].offset());
+    //         break;
+    //     default:
+    //         break;
+    //     }
+    // }
     
     rc = index->delete_entry(old_record, &rid);
     if (rc != RC::SUCCESS) {
@@ -984,29 +995,28 @@ RC Table::update_entry_of_indexes(const char *old_record, const char *record,
         rc = RC::SUCCESS;
       }
     }
-    LOG_DEBUG("INSERT INDEX ENTRY.");
-    LOG_DEBUG("NEW RECORD: ");
-    for (int i = 0; i < table_meta_.fields().size(); i++)
-    {
-        switch (table_meta_.fields()[i].type())
-        {
-        case INTS:
-            LOG_DEBUG("INT: %d", record+table_meta_.fields()[i].offset());
-            break;
-        case DATES:
-            LOG_DEBUG("DATE: %d", record+table_meta_.fields()[i].offset());
-            break;
-        case FLOATS:
-            LOG_DEBUG("FLOAT: %.2f", record+table_meta_.fields()[i].offset());
-            break;
-        case CHARS:
-            LOG_DEBUG("CHARS: %s", record + table_meta_.fields()[i].offset());
-            break;
-        
-        default:
-            break;
-        }
-    }
+    // LOG_DEBUG("INSERT INDEX ENTRY.");
+    // LOG_DEBUG("NEW RECORD: ");
+    // for (int i = 0; i < table_meta_.fields().size(); i++)
+    // {
+    //     switch (table_meta_.fields()[i].type())
+    //     {
+    //     case INTS:
+    //         LOG_DEBUG("INT: %d", *(int *)(record + table_meta_.fields()[i].offset()));
+    //         break;
+    //     case DATES:
+    //         LOG_DEBUG("DATE: %d", *(int *)(record+table_meta_.fields()[i].offset()));
+    //         break;
+    //     case FLOATS:
+    //         LOG_DEBUG("FLOAT: %.2f", *(float *)(record+table_meta_.fields()[i].offset()));
+    //         break;
+    //     case CHARS:
+    //         LOG_DEBUG("CHARS: %s", record + table_meta_.fields()[i].offset());
+    //         break;
+    //     default:
+    //         break;
+    //     }
+    // }
     rc = index->insert_entry(record, &rid);
     if (rc != RC::SUCCESS) {
       break;

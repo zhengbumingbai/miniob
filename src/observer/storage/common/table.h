@@ -97,7 +97,7 @@ private:
 private:
   RC init_record_handler(const char *base_dir);
   RC make_record(int value_num, const Value *values, char * &record_out);
-  RC make_updated_record(const char* record_in, const char *attribute_name, const Value *value, char * &record_out);
+  RC make_updated_record(const char* record_in, const char *attribute_name, const Value *value, char * &record_out,char *&copyed_old_record);
 
 private:
   Index *find_index(const char *index_name) const;
