@@ -15,9 +15,9 @@ See the Mulan PSL v2 for more details. */
 
 #include <limits.h>
 #include <string.h>
-#include <vector>
 
 #include <algorithm>
+#include <vector>
 
 #include "common/lang/string.h"
 #include "common/log/log.h"
@@ -154,18 +154,19 @@ RC Table::open(const char *meta_file, const char *base_dir) {
     const IndexMeta *index_meta = table_meta_.index(i);
     const FieldMeta *field_meta;
     const char *field_name = nullptr;
-    for (int i = 0; i < index_meta->field_names().size(); i++)
-    {
-        field_name = index_meta->field_names()[i].c_str();
-        field_meta = table_meta_.field(field_name);
+    for (int i = 0; i < index_meta->field_names().size(); i++) {
+      field_name = index_meta->field_names()[i].c_str();
+      field_meta = table_meta_.field(field_name);
 
-        if (field_meta == nullptr && field_name != nullptr) {
-          LOG_PANIC("Found invalid index meta info which has a non-exists field. "
-            "table=%s, index=%s, field=%s",name(), index_meta->name(), field_name);
-          return RC::GENERIC_ERROR;
-        }
+      if (field_meta == nullptr && field_name != nullptr) {
+        LOG_PANIC(
+            "Found invalid index meta info which has a non-exists field. "
+            "table=%s, index=%s, field=%s",
+            name(), index_meta->name(), field_name);
+        return RC::GENERIC_ERROR;
+      }
     }
-    
+
     // const FieldMeta *field_meta = table_meta_.field(index_meta->field());
 
     BplusTreeIndex *index = new BplusTreeIndex();
@@ -208,21 +209,22 @@ RC Table::destroy_table() {
     const IndexMeta *index_meta = table_meta_.index(i);
     const FieldMeta *field_meta;
     char *field_name = nullptr;
-    for (int i = 0; i < index_meta->field_names().size(); i++)
-    {
-        // std::cerr <<"1. "<<index_meta->field_names()[i]<<std::endl;
-        field_name = strdup(index_meta->field_names()[i].c_str());
-        // LOG_DEBUG("field_name: %s", field_name);
-        field_meta = table_meta_.field(field_name);
+    for (int i = 0; i < index_meta->field_names().size(); i++) {
+      // std::cerr <<"1. "<<index_meta->field_names()[i]<<std::endl;
+      field_name = strdup(index_meta->field_names()[i].c_str());
+      // LOG_DEBUG("field_name: %s", field_name);
+      field_meta = table_meta_.field(field_name);
 
-        if (field_meta == nullptr && field_name != nullptr) {
-          LOG_PANIC("Found invalid index meta info which has a non-exists field. "
-            "table=%s, index=%s, field=%s",name(), index_meta->name(), field_name);
-          return RC::GENERIC_ERROR;
-        }
-        free(field_name);
+      if (field_meta == nullptr && field_name != nullptr) {
+        LOG_PANIC(
+            "Found invalid index meta info which has a non-exists field. "
+            "table=%s, index=%s, field=%s",
+            name(), index_meta->name(), field_name);
+        return RC::GENERIC_ERROR;
+      }
+      free(field_name);
     }
-    
+
     std::string index_file =
         index_data_file(base_dir_.c_str(), name(), index_meta->name());
     if (file_exist(index_file.c_str())) {
@@ -239,9 +241,7 @@ RC Table::destroy_table() {
   return rc;
 }
 
-std::string Table::base_dir(){
-    return base_dir_;
-}
+std::string Table::base_dir() { return base_dir_; }
 
 RC Table::commit_insert(Trx *trx, const RID &rid) {
   Record record;
@@ -287,23 +287,22 @@ RC Table::insert_record(Trx *trx, Record *record) {
     return rc;
   }
 
-// zt 暂时不考虑事务
-//   if (trx != nullptr) {
-//     rc = trx->insert_record(this, record);
-//     // zt 不考虑事务
-//     if (rc != RC::SUCCESS) {
-//       LOG_ERROR("Failed to log operation(insertion) to trx");
+  // zt 暂时不考虑事务
+  //   if (trx != nullptr) {
+  //     rc = trx->insert_record(this, record);
+  //     // zt 不考虑事务
+  //     if (rc != RC::SUCCESS) {
+  //       LOG_ERROR("Failed to log operation(insertion) to trx");
 
-//       RC rc2 = record_handler_->delete_record(&record->rid);
-//       if (rc2 != RC::SUCCESS) {
-//         LOG_PANIC(
-//             "Failed to rollback record data when insert index entries failed. "
-//             "table name=%s, rc=%d:%s",
-//             name(), rc2, strrc(rc2));
-//       }
-//       return rc;
-//     }
-//   }
+  //       RC rc2 = record_handler_->delete_record(&record->rid);
+  //       if (rc2 != RC::SUCCESS) {
+  //         LOG_PANIC(
+  //             "Failed to rollback record data when insert index entries
+  //             failed. " "table name=%s, rc=%d:%s", name(), rc2, strrc(rc2));
+  //       }
+  //       return rc;
+  //     }
+  //   }
 
   rc = insert_entry_of_indexes(record->data, record->rid);
   if (rc != RC::SUCCESS) {
@@ -325,8 +324,8 @@ RC Table::insert_record(Trx *trx, Record *record) {
   }
   return rc;
 }
-RC Table::insert_record(Trx *trx, int value_num, const Value *values, RID *rid)
-{
+RC Table::insert_record(Trx *trx, int value_num, const Value *values,
+                        RID *rid) {
   if (value_num <= 0 || nullptr == values) {
     LOG_ERROR("Invalid argument. value num=%d, values=%p", value_num, values);
     return RC::INVALID_ARGUMENT;
@@ -345,8 +344,7 @@ RC Table::insert_record(Trx *trx, int value_num, const Value *values, RID *rid)
   rc = insert_record(trx, &record);
 
   //   通过传指针 记录下rid
-  if (rid)
-  {
+  if (rid) {
     *rid = record.rid;
   }
 
@@ -370,7 +368,7 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
     const Value &value = values[i];
     // zt 校验UNIX时间戳是否合法
     if (value.type == DATES && *(int *)value.data == INT32_MIN) {
-        LOG_DEBUG("INSERT DATES TYPE INVAILD");
+      LOG_DEBUG("INSERT DATES TYPE INVAILD");
       return RC::RECORD;
     }
     if (field->type() != value.type && value.type != AttrType::NULLFIELD) {
@@ -379,8 +377,10 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     }
     if (!field->nullable() && value.type == AttrType::NULLFIELD) {
-      LOG_ERROR("Fieid is not nullable. Invalid value type. field name=%s, type=%d, nullable=%d, but given=%d",
-                field->name(), field->type(), field->nullable(), value.type);
+      LOG_ERROR(
+          "Fieid is not nullable. Invalid value type. field name=%s, type=%d, "
+          "nullable=%d, but given=%d",
+          field->name(), field->type(), field->nullable(), value.type);
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     }
   }
@@ -392,15 +392,15 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
-    
-    if(value.type != AttrType::NULLFIELD) {
+
+    if (value.type != AttrType::NULLFIELD) {
       int8_t is_null = 0;
-      memcpy(record + field->offset(), value.data, field->len()-1);
-      memcpy(record + field->offset()+field->len()-1, &is_null, 1);
+      memcpy(record + field->offset(), value.data, field->len() - 1);
+      memcpy(record + field->offset() + field->len() - 1, &is_null, 1);
     } else {
       int8_t is_null = 1;
-      memset(record + field->offset(), 0, field->len()-1);
-      memcpy(record + field->offset()+field->len()-1, &is_null, 1);
+      memset(record + field->offset(), 0, field->len() - 1);
+      memcpy(record + field->offset() + field->len() - 1, &is_null, 1);
     }
   }
 
@@ -409,7 +409,8 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
 }
 
 RC Table::make_updated_record(const char *record_in, const char *attribute_name,
-                              const Value *value, char *&record_out,char *&copyed_old_record) {
+                              const Value *value, char *&record_out,
+                              char *&copyed_old_record) {
   // 检查字段类型是否一致
   int value_num = table_meta_.field_num() - table_meta_.sys_field_num();
 
@@ -421,20 +422,22 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
       attribute_loc = i;
       // zt 校验UNIX时间戳是否合法
       if (value->type == DATES && *(int *)value->data == INT32_MIN) {
-          LOG_DEBUG("INSERT DATES TYPE INVAILD");
+        LOG_DEBUG("INSERT DATES TYPE INVAILD");
         return RC::RECORD;
       }
       if (field->type() != value->type && value->type != AttrType::NULLFIELD) {
         LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
                   field->name(), field->type(), value->type);
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      }else{
+      } else {
         //   找到了就break
-          break;
+        break;
       }
       if (!field->nullable() && value->type == AttrType::NULLFIELD) {
-        LOG_ERROR("Fieid is not nullable. Invalid value type. field name=%s, type=%d, nullable=%d, but given=%d",
-                  field->name(), field->type(), field->nullable(), value->type);
+        LOG_ERROR(
+            "Fieid is not nullable. Invalid value type. field name=%s, "
+            "type=%d, nullable=%d, but given=%d",
+            field->name(), field->type(), field->nullable(), value->type);
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
       }
     }
@@ -455,14 +458,14 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
   // 复制新值
   const FieldMeta *field =
       table_meta_.field(attribute_loc + normal_field_start_index);
-  if(value->type != AttrType::NULLFIELD) {
-      int8_t is_null = 0;
-      memcpy(record + field->offset(), value->data, field->len()-1);
-      memcpy(record + field->offset()+field->len()-1, &is_null, 1);
-    } else {
-      int8_t is_null = 1;
-      memcpy(record + field->offset()+field->len()-1, &is_null, 1);
-    }
+  if (value->type != AttrType::NULLFIELD) {
+    int8_t is_null = 0;
+    memcpy(record + field->offset(), value->data, field->len() - 1);
+    memcpy(record + field->offset() + field->len() - 1, &is_null, 1);
+  } else {
+    int8_t is_null = 1;
+    memcpy(record + field->offset() + field->len() - 1, &is_null, 1);
+  }
 
   record_out = record;
   copyed_old_record = copied_record;
@@ -541,12 +544,14 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit,
     limit = INT_MAX;
   }
 
-// zt 建索引时filter为 null，此处select条件过滤时执行的
+  // zt 建索引时filter为 null，此处select条件过滤时执行的
   IndexScanner *index_scanner = find_index_for_scan(filter);
   if (index_scanner != nullptr) {
     RC rc = scan_record_by_index(trx, index_scanner, filter, limit, context,
-                                record_reader);
-    if(rc == RC::RECORD_NO_MORE_IDX_IN_MEM || rc == RC::RECORD_EOF || rc == RC::SUCCESS) return RC::SUCCESS;
+                                 record_reader);
+    if (rc == RC::RECORD_NO_MORE_IDX_IN_MEM || rc == RC::RECORD_EOF ||
+        rc == RC::SUCCESS)
+      return RC::SUCCESS;
   }
 
   RC rc = RC::SUCCESS;
@@ -558,7 +563,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit,
     return rc;
   }
 
-    //zt 执行逐条查输入
+  // zt 执行逐条查输入
   int record_count = 0;
   Record record;
   rc = scanner.get_first_record(&record);
@@ -644,48 +649,42 @@ static RC insert_index_record_reader_adapter(Record *record, void *context) {
 }
 
 // zt 增加多列属性元信息录入
-RC Table::create_index(Trx *trx, const char *index_name, std::vector<std::string> atteibute_names, int isUnique)
-{
-    // 检查索引名是否为nullptr或者空白字符串
-    if (index_name == nullptr || common::is_blank(index_name))
-    {
-        return RC::INVALID_ARGUMENT;
+RC Table::create_index(Trx *trx, const char *index_name,
+                       std::vector<std::string> atteibute_names, int isUnique) {
+  // 检查索引名是否为nullptr或者空白字符串
+  if (index_name == nullptr || common::is_blank(index_name)) {
+    return RC::INVALID_ARGUMENT;
+  }
+  // 检查每一个属性名是否为nullptr或者空百字符串
+  for (int i = 0; i < atteibute_names.size(); i++) {
+    const char *attr_name = atteibute_names[i].c_str();
+    if (attr_name == nullptr || common::is_blank(attr_name)) {
+      return RC::INVALID_ARGUMENT;
     }
-    // 检查每一个属性名是否为nullptr或者空百字符串 
-    for (int i = 0; i < atteibute_names.size(); i++)
-    {
-        const char *attr_name = atteibute_names[i].c_str();
-        if (attr_name == nullptr || common::is_blank(attr_name))
-        {
-            return RC::INVALID_ARGUMENT;
-        }
-    }
+  }
 
-    // if (index_name == nullptr || common::is_blank(index_name) ||
-    //     attribute_name == nullptr || common::is_blank(attribute_name))
-    // {
-    //     return RC::INVALID_ARGUMENT;
-    // }
-// zt 检查是否有重名索引或者结构的索引
-    if (table_meta_.index(index_name) != nullptr ||
-        table_meta_.find_index_by_field(atteibute_names))
-    {
-        return RC::SCHEMA_INDEX_EXIST;
-    }
+  // if (index_name == nullptr || common::is_blank(index_name) ||
+  //     attribute_name == nullptr || common::is_blank(attribute_name))
+  // {
+  //     return RC::INVALID_ARGUMENT;
+  // }
+  // zt 检查是否有重名索引或者结构的索引
+  if (table_meta_.index(index_name) != nullptr ||
+      table_meta_.find_index_by_field(atteibute_names)) {
+    return RC::SCHEMA_INDEX_EXIST;
+  }
 
-    // table元信息检查 查看是否每一个属性都存在
-    std::vector<FieldMeta> field_metas;
-    for (int i = 0; i < atteibute_names.size(); i++)
-    {
-        const FieldMeta *field_meta = table_meta_.field(atteibute_names[i].c_str());
-        if (!field_meta)
-        {
-            return RC::SCHEMA_FIELD_MISSING;
-        }
-        field_metas.push_back(*field_meta);
+  // table元信息检查 查看是否每一个属性都存在
+  std::vector<FieldMeta> field_metas;
+  for (int i = 0; i < atteibute_names.size(); i++) {
+    const FieldMeta *field_meta = table_meta_.field(atteibute_names[i].c_str());
+    if (!field_meta) {
+      return RC::SCHEMA_FIELD_MISSING;
     }
+    field_metas.push_back(*field_meta);
+  }
 
-    // zt 初始化索引元信息 增加uniuqe 字段
+  // zt 初始化索引元信息 增加uniuqe 字段
   IndexMeta new_index_meta;
   RC rc = new_index_meta.init(index_name, atteibute_names, isUnique);
   if (rc != RC::SUCCESS) {
@@ -705,7 +704,7 @@ RC Table::create_index(Trx *trx, const char *index_name, std::vector<std::string
   }
 
   // 遍历当前的所有数据，插入这个索引
-// zt  只需要修改索引插入的适配器 函数指针指向的函数
+  // zt  只需要修改索引插入的适配器 函数指针指向的函数
   IndexInserter index_inserter(index);
   rc = scan_record(trx, nullptr, -1, &index_inserter,
                    insert_index_record_reader_adapter);
@@ -773,7 +772,6 @@ class RecordUpdater {
 
   RC update_record(Record *old_record) {
     RC rc = RC::SUCCESS;
-
 
     Record *edited_record = new Record();
     Record *copy_old_record = new Record();
@@ -1007,22 +1005,22 @@ RC Table::update_entry_of_indexes(const char *old_record, const char *record,
     //     switch (table_meta_.fields()[i].type())
     //     {
     //     case INTS:
-    //         LOG_DEBUG("INT: %d", *(int *)(old_record+table_meta_.fields()[i].offset()));
-    //         break;
+    //         LOG_DEBUG("INT: %d", *(int
+    //         *)(old_record+table_meta_.fields()[i].offset())); break;
     //     case DATES:
-    //         LOG_DEBUG("DATE: %d", *(int *)(old_record+table_meta_.fields()[i].offset()));
-    //         break;
+    //         LOG_DEBUG("DATE: %d", *(int
+    //         *)(old_record+table_meta_.fields()[i].offset())); break;
     //     case FLOATS:
-    //         LOG_DEBUG("FLOAT: %.2f", *(float *)(old_record+table_meta_.fields()[i].offset()));
-    //         break;
+    //         LOG_DEBUG("FLOAT: %.2f", *(float
+    //         *)(old_record+table_meta_.fields()[i].offset())); break;
     //     case CHARS:
-    //         LOG_DEBUG("CHARS: %s", old_record + table_meta_.fields()[i].offset());
-    //         break;
+    //         LOG_DEBUG("CHARS: %s", old_record +
+    //         table_meta_.fields()[i].offset()); break;
     //     default:
     //         break;
     //     }
     // }
-    
+
     rc = index->delete_entry(old_record, &rid);
     if (rc != RC::SUCCESS) {
       if (rc != RC::RECORD_INVALID_KEY || error_on_not_exists) {
@@ -1038,17 +1036,17 @@ RC Table::update_entry_of_indexes(const char *old_record, const char *record,
     //     switch (table_meta_.fields()[i].type())
     //     {
     //     case INTS:
-    //         LOG_DEBUG("INT: %d", *(int *)(record + table_meta_.fields()[i].offset()));
-    //         break;
+    //         LOG_DEBUG("INT: %d", *(int *)(record +
+    //         table_meta_.fields()[i].offset())); break;
     //     case DATES:
-    //         LOG_DEBUG("DATE: %d", *(int *)(record+table_meta_.fields()[i].offset()));
-    //         break;
+    //         LOG_DEBUG("DATE: %d", *(int
+    //         *)(record+table_meta_.fields()[i].offset())); break;
     //     case FLOATS:
-    //         LOG_DEBUG("FLOAT: %.2f", *(float *)(record+table_meta_.fields()[i].offset()));
-    //         break;
+    //         LOG_DEBUG("FLOAT: %.2f", *(float
+    //         *)(record+table_meta_.fields()[i].offset())); break;
     //     case CHARS:
-    //         LOG_DEBUG("CHARS: %s", record + table_meta_.fields()[i].offset());
-    //         break;
+    //         LOG_DEBUG("CHARS: %s", record +
+    //         table_meta_.fields()[i].offset()); break;
     //     default:
     //         break;
     //     }
@@ -1086,15 +1084,14 @@ Index *Table::find_index(const char *index_name) const {
   return nullptr;
 }
 
-
-//zt 为了满足多列索引 需要重构寻找合适的索引
+// zt 为了满足多列索引 需要重构寻找合适的索引
 // zt 只有一个列的情况
 // 现在无论是单列条件或者是组合条件都只会找到单列的
 // 需要修改匹配规则
 IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
   const ConDesc *field_cond_desc = nullptr;
   const ConDesc *value_cond_desc = nullptr;
-//   zt 条件两端必须有一个不是常量 
+  //   zt 条件两端必须有一个不是常量
   if (filter.left().is_attr && !filter.right().is_attr) {
     field_cond_desc = &filter.left();
     value_cond_desc = &filter.right();
@@ -1103,7 +1100,7 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
     value_cond_desc = &filter.left();
   }
 
-//   如果不满足条件就返回nullptr
+  //   如果不满足条件就返回nullptr
   if (field_cond_desc == nullptr || value_cond_desc == nullptr) {
     return nullptr;
   }
@@ -1121,12 +1118,11 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
   comp.comp_op_ = filter.comp_op();
   comp.value_ = (const char *)value_cond_desc->value;
   compare_objects.push_back(comp);
-// 根据filed名去找该表合适的索引元信息
-//   const char* attibute_name[5];
+  // 根据filed名去找该表合适的索引元信息
+  //   const char* attibute_name[5];
   const char *attibute_name = field_meta->name();
   std::vector<std::string> attribute_names;
   attribute_names.push_back(attibute_name);
-
 
   const IndexMeta *index_meta =
       table_meta_.find_index_by_field(attribute_names);
@@ -1138,7 +1134,7 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
   if (nullptr == index) {
     return nullptr;
   }
-  
+
   return index->create_scanner(compare_objects);
 }
 
@@ -1148,18 +1144,20 @@ IndexScanner *Table::find_index_for_scan(const ConditionFilter *filter) {
   }
 
   // remove dynamic_cast
-//   zt 查看是否是默认条件过滤 也就是只有一个过滤条件
+  //   zt 查看是否是默认条件过滤 也就是只有一个过滤条件
   const DefaultConditionFilter *default_condition_filter =
       dynamic_cast<const DefaultConditionFilter *>(filter);
   if (default_condition_filter != nullptr) {
     return find_index_for_scan(*default_condition_filter);
   }
 
-  const CompositeConditionFilter *composite_condition_filter = dynamic_cast<const CompositeConditionFilter *>(filter);
+  const CompositeConditionFilter *composite_condition_filter =
+      dynamic_cast<const CompositeConditionFilter *>(filter);
   if (composite_condition_filter != nullptr) {
     // int filter_num = composite_condition_filter->filter_num();
-    // // zt 在每一个条件上进行查找索引，但是 目前处理的方法是找到第一个符合条件的索引就返回 
-    // for (int i = 0; i < filter_num; i++) {
+    // // zt 在每一个条件上进行查找索引，但是
+    // 目前处理的方法是找到第一个符合条件的索引就返回 for (int i = 0; i <
+    // filter_num; i++) {
     //   IndexScanner *scanner =
     //       find_index_for_scan(&composite_condition_filter->filter(i));
     //   if (scanner != nullptr) {
@@ -1171,48 +1169,49 @@ IndexScanner *Table::find_index_for_scan(const ConditionFilter *filter) {
   return nullptr;
 }
 
-IndexScanner *Table::find_index_for_scan(const CompositeConditionFilter &filters){
+IndexScanner *Table::find_index_for_scan(
+    const CompositeConditionFilter &filters) {
   int filter_num = filters.filter_num();
   std::vector<std::string> attribute_names;
   std::vector<CompareObject> compare_objects;
-  for (int i = 0; i < filter_num; i++)
-  {
-    const DefaultConditionFilter *filter = dynamic_cast<const DefaultConditionFilter * >(&(filters.filter(i)));
-    if(nullptr != filter){
-        const ConDesc *field_cond_desc = nullptr;
-        const ConDesc *value_cond_desc = nullptr;
-        if (filter->left().is_attr && !filter->right().is_attr) {
+  for (int i = 0; i < filter_num; i++) {
+    const DefaultConditionFilter *filter =
+        dynamic_cast<const DefaultConditionFilter *>(&(filters.filter(i)));
+    if (nullptr != filter) {
+      const ConDesc *field_cond_desc = nullptr;
+      const ConDesc *value_cond_desc = nullptr;
+      if (filter->left().is_attr && !filter->right().is_attr) {
         field_cond_desc = &filter->left();
         value_cond_desc = &filter->right();
-        } else if (filter->right().is_attr && !filter->left().is_attr) {
+      } else if (filter->right().is_attr && !filter->left().is_attr) {
         field_cond_desc = &filter->right();
         value_cond_desc = &filter->left();
-        }
+      }
 
-        if (field_cond_desc == nullptr || value_cond_desc == nullptr) {
-            return nullptr;
-        }
+      if (field_cond_desc == nullptr || value_cond_desc == nullptr) {
+        return nullptr;
+      }
 
-        const FieldMeta *field_meta =
-            table_meta_.find_field_by_offset(field_cond_desc->attr_offset);
-        if (nullptr == field_meta) {
-            LOG_PANIC("Cannot find field by offset %d. table=%s",
-                    field_cond_desc->attr_offset, name());
-            return nullptr;
-        }
+      const FieldMeta *field_meta =
+          table_meta_.find_field_by_offset(field_cond_desc->attr_offset);
+      if (nullptr == field_meta) {
+        LOG_PANIC("Cannot find field by offset %d. table=%s",
+                  field_cond_desc->attr_offset, name());
+        return nullptr;
+      }
 
-        const char *attibute_name = field_meta->name();
-        attribute_names.push_back(attibute_name);
+      const char *attibute_name = field_meta->name();
+      attribute_names.push_back(attibute_name);
 
-        CompareObject comp;
-        comp.comp_op_ = filter->comp_op();
-        comp.value_ = (const char *)value_cond_desc->value;
-        compare_objects.push_back(comp);
-    }else {
-        LOG_DEBUG("Can't convert ConditionFilter to DefaultConditionFilter");
+      CompareObject comp;
+      comp.comp_op_ = filter->comp_op();
+      comp.value_ = (const char *)value_cond_desc->value;
+      compare_objects.push_back(comp);
+    } else {
+      LOG_DEBUG("Can't convert ConditionFilter to DefaultConditionFilter");
     }
   }
-  
+
   const IndexMeta *index_meta =
       table_meta_.find_index_by_field(attribute_names);
   if (nullptr == index_meta) {
@@ -1225,7 +1224,6 @@ IndexScanner *Table::find_index_for_scan(const CompositeConditionFilter &filters
   }
 
   return index->create_scanner(compare_objects);
-
 }
 RC Table::sync() {
   RC rc = data_buffer_pool_->flush_all_pages(file_id_);
