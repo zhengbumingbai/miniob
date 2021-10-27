@@ -229,7 +229,7 @@ void TupleSchema::print(std::ostream &os) const {
         default:
           LOG_DEBUG("Aggregation AGGR_UNDEFINED.");
       }
-      os << aggr_all_field_name << " | ";
+      os << aggr_all_field_name << std::string(" | ");
     }
     if (table_names.size() > 1) {
       os << fields_.back().table_name() << ".";
@@ -307,14 +307,14 @@ void TupleSchema::print(std::ostream &os) const {
     for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
       iter != end; ++iter) {
       if (table_names.size() > 1) {
-        os << iter->table_name() << ".";
+        os << iter->table_name() << std::string(".");
       }
-      os << iter->field_name() << " | ";
+      os << iter->field_name() << std::string(" | ");
     }
     if (table_names.size() > 1) {
-      os << fields_.back().table_name() << ".";
+      os << std::string(fields_.back().table_name()) << std::string(".");
     }
-    os << fields_.back().field_name() << std::endl;
+    os << std::string(fields_.back().field_name()) << std::endl;
   }
 
 }

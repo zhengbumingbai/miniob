@@ -128,13 +128,21 @@ void SessionStage::callback_event(StageEvent *event, CallbackContext *context)
         response = "FAILURE\n";
         len = strlen(response) + 1;
     }
-    Server::send(sev->get_client(), response, len);
-    if ('\0' != response[len - 1])
-    {
-        // 这里强制性的给发送一个消息终结符，如果需要发送多条消息，需要调整
-        char end = 0;
-        Server::send(sev->get_client(), &end, 1);
-    }
+    for (int i=0; i < len; i++) {
+        if (response[i] == '\0') {
+            continue;
+        }
+        Server::send(sev->get_client(), &response[i], 1);
+    } 
+    char end = 0;
+    Server::send(sev->get_client(), &end, 1);
+    // Server::send(sev->get_client(), response, len);
+    // if ('\0' != response[len - 1])
+    // {
+    //     // 这里强制性的给发送一个消息终结符，如果需要发送多条消息，需要调整
+    //     char end = 0;
+    //     Server::send(sev->get_client(), &end, 1);
+    // }
 
     // sev->done();
     LOG_TRACE("Exit\n");
