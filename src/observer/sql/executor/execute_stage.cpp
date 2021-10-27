@@ -48,10 +48,10 @@ ExecuteStage::~ExecuteStage() {}
 void find_conditions(const Selects& selects, std::vector<Condition>& conditions);
 
 //add by cmk : 根据查询语句中指定的要查询的列，从joined table中选出指定列组成新表
-void select_columns(const TupleSet& joined_table, const Selects& selects, TupleSet& joined_table_selected);
+void select_columns(const TupleSet& joined_table, const Selects& selects, TupleSet& joined_table_selected,bool is_single_table);
 
 //add by cmk : 选出要查询的列名组成新的schema
-RC select_column_names(const TupleSchema& old_schema, const Selects& selects, TupleSchema& new_schema);
+RC select_column_names(const TupleSchema& old_schema, const Selects& selects, TupleSchema& new_schema,bool is_single_table);
 
 //add by cmk : 多表join
 void join_multiple_table(std::vector<TupleSet>& tuple_sets,const std::vector<Condition>& conditions,TupleSet& joined_table);
@@ -326,6 +326,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     if (tuple_sets.size() > 1)
     {
         // 本次查询了多张表，需要做join操作
+        bool is_single_table = false;
         bool exist_empty_table = false;
         LOG_INFO("tuple sets size is %d", tuple_sets.size());
         TupleSchema all_tables_schemas;
@@ -341,10 +342,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
             LOG_INFO("exist empty table,print fields only");
             TupleSchema selected_schema;
             LOG_INFO("selects attr_num is [%d], attr[0] is [%s]", selects.attr_num, selects.attributes[0].attribute_name);
-            if(RC::SUCCESS != select_column_names(all_tables_schemas, selects, selected_schema)){
+            if(RC::SUCCESS != select_column_names(all_tables_schemas, selects, selected_schema,is_single_table)){
                 return RC::GENERIC_ERROR;
             }
-            selected_schema.print(ss);
+            selected_schema.print(ss,is_single_table);
         }else{
             //多表join
             LOG_INFO("multiple table joining");
@@ -357,17 +358,20 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
             //select需要的列
             TupleSet joined_table_selected;
-            select_columns(joined_table, selects, joined_table_selected);
+            select_columns(joined_table, selects, joined_table_selected,is_single_table);
 
-            joined_table_selected.print(ss);
+            joined_table_selected.print(ss, is_single_table);
         }
 
 
     }
     else
     {
+        bool is_single_table = true;
         // 当前只查询一张表，直接返回结果即可
-        tuple_sets.front().print(ss);
+        TupleSet table_selected;
+        select_columns(tuple_sets[0], selects, table_selected, is_single_table);
+        table_selected.print(ss, is_single_table);
     }
 
     for (ExecutionNode *&tmp_node : select_nodes)
@@ -520,28 +524,28 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
         return RC::SCHEMA_TABLE_NOT_EXIST;
     }
 
-    for (int i = selects.attr_num - 1; i >= 0; i--)
-    {
-        const RelAttr &attr = selects.attributes[i];
-        if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name))
-        {
-            if (0 == strcmp("*", attr.attribute_name))
-            {
-                // 列出这张表所有字段
-                TupleSchema::from_table(table, schema);
-                break; // 没有校验，给出* 之后，再写字段的错误
-            }
-            else
-            {
-                // 列出这张表相关字段
-                RC rc = schema_add_field(table, attr.attribute_name, schema);
-                if (rc != RC::SUCCESS)
-                {
-                    return rc;
-                }
-            }
-        }
-    }
+    // for (int i = selects.attr_num - 1; i >= 0; i--)
+    // {
+    //     const RelAttr &attr = selects.attributes[i];
+    //     if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name))
+    //     {
+    //         if (0 == strcmp("*", attr.attribute_name))
+    //         {
+    //             // 列出这张表所有字段
+    //             TupleSchema::from_table(table, schema);
+    //             break; // 没有校验，给出* 之后，再写字段的错误
+    //         }
+    //         else
+    //         {
+    //             // 列出这张表相关字段
+    //             RC rc = schema_add_field(table, attr.attribute_name, schema);
+    //             if (rc != RC::SUCCESS)
+    //             {
+    //                 return rc;
+    //             }
+    //         }
+    //     }
+    // }
 
     // 找出仅与此表相关的过滤条件, 或者都是值的过滤条件
     std::vector<DefaultConditionFilter *> condition_filters;
@@ -570,22 +574,23 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
         }
 
         //add by cmk : 如果需要作多表查询时，有和多表相关的条件，则仍然将每个表的所有字段都列出
-        if(condition.left_is_attr == 1 && condition.right_is_attr == 1 && 
-                (0 != strcmp(condition.left_attr.relation_name, condition.right_attr.relation_name)))
-        {
-            // 列出这张表所有字段
-            LOG_INFO("multi join conditions , still list all attr of one table");
-            schema.clear();
-            TupleSchema::from_table(table, schema);
-        }
+        // if(condition.left_is_attr == 1 && condition.right_is_attr == 1 && 
+        //         (0 != strcmp(condition.left_attr.relation_name, condition.right_attr.relation_name)))
+        // {
+        //     // 列出这张表所有字段
+        //     LOG_INFO("multi join conditions , still list all attr of one table");
+        //     schema.clear();
+        //     TupleSchema::from_table(table, schema);
+        // }
     }
 
+    TupleSchema::from_table(table, schema);
     return select_node.init(trx, table, std::move(schema), std::move(condition_filters));
 }
 
 
 //add by cmk : 选出要查询的列名组成新的schema
-RC select_column_names(const TupleSchema& old_schema, const Selects& selects, TupleSchema& new_schema)
+RC select_column_names(const TupleSchema& old_schema, const Selects& selects, TupleSchema& new_schema, bool is_single_table)
 {
     const std::vector<TupleField> fields = old_schema.fields();
     if(fields.size() <= 0 ){
@@ -600,12 +605,27 @@ RC select_column_names(const TupleSchema& old_schema, const Selects& selects, Tu
     for(int j = (selects.attr_num - 1) ; j >= 0 ; j --){
         const RelAttr& attr = selects.attributes[j];
         LOG_INFO("attr table name is [%s], field name is [%s]",attr.relation_name, attr.attribute_name);
+        //多表查询时，不允许condition里的表名为空
+        if(!is_single_table && (0 != strcmp(attr.attribute_name, "*")) && attr.relation_name == nullptr ){
+            return RC::GENERIC_ERROR;
+        }
         for(auto field : fields){
-            if((0 == strcmp(attr.attribute_name, "*")) || 
-                ((0 == strcmp(field.table_name(), attr.relation_name) && (0 == strcmp(field.field_name(), attr.attribute_name))) ) ){
-                new_schema.add_if_not_exists(field.type(), field.table_name(), field.field_name());
-                LOG_DEBUG("select_columns_name() : new_schema table name is [%s],field name is [%s]",field.table_name(),field.field_name());
+            if(!is_single_table){ //多表
+                if((0 == strcmp(attr.attribute_name, "*")) || 
+                    ((0 == strcmp(field.table_name(), attr.relation_name)) && (0 == strcmp(field.field_name(), attr.attribute_name)) ) ){
+                    LOG_DEBUG("select_columns_name() multi table: new_schema table name is [%s],field name is [%s]",field.table_name(),field.field_name());
+                    new_schema.add_if_not_exists(field.type(), field.table_name(), field.field_name());
+                }
+            }else{ //单表
+                LOG_DEBUG("SINGLE");
+                if((0 == strcmp(attr.attribute_name, "*")) || 
+                     ((nullptr ==  attr.relation_name) && (0 == strcmp(field.field_name(), attr.attribute_name))) || 
+                    ((0 == strcmp(field.table_name(), attr.relation_name)) && (0 == strcmp(field.field_name(), attr.attribute_name))) ){
+                    LOG_DEBUG("select_columns_name() single table: new_schema table name is [%s],field name is [%s]",field.table_name(),field.field_name());
+                    new_schema.add_if_not_exists(field.type(), field.table_name(), field.field_name());
+                }
             }
+
         }
     }
     if(new_schema.fields().size() <=0 ){
@@ -617,7 +637,7 @@ RC select_column_names(const TupleSchema& old_schema, const Selects& selects, Tu
 }
 
 //add by cmk : 根据查询语句中指定的要查询的列，从joined table中选出指定列组成新表
-void select_columns(const TupleSet& joined_table, const Selects& selects, TupleSet& joined_table_selected)
+void select_columns(const TupleSet& joined_table, const Selects& selects, TupleSet& joined_table_selected,bool is_single_table)
 {
     if(joined_table.size() == 0){
         LOG_WARN("src table size is 0");
@@ -627,7 +647,7 @@ void select_columns(const TupleSet& joined_table, const Selects& selects, TupleS
     LOG_DEBUG("select columns() :joined table schema size is [%d]", joined_table_fields.size());
     TupleSchema schema;
     //列出表的相关字段
-    if(RC::SUCCESS !=  select_column_names(joined_table_schema, selects, schema)){
+    if(RC::SUCCESS !=  select_column_names(joined_table_schema, selects, schema, is_single_table)){
         LOG_INFO("select columns names failed");
     }
     LOG_DEBUG("select columns() :selected schema size is [%d]", schema.fields().size());
@@ -673,6 +693,13 @@ void merge_tuple(const Tuple& left_tuple, const Tuple& right_tuple, Tuple& dst_t
     return;
 }
 
+void strexchg(char **a, char **b){
+    char *c;
+    c=*a; 
+    *a=*b;
+    *b=c;
+}
+
 //add by cmk : 找到和两个表有关的conditions
 void find_two_table_condition(const TupleSchema& left_table_schema, 
                                 const TupleSchema& right_table_schema, 
@@ -682,9 +709,44 @@ void find_two_table_condition(const TupleSchema& left_table_schema,
     const char * left_table_name = left_table_schema.field(0).table_name();
     const char * right_table_name = right_table_schema.field(0).table_name();
     for(auto condition : conditions){
-        if( (0 == strcmp(left_table_name,condition.left_attr.relation_name)) && 
-            (0 == strcmp(right_table_name, condition.right_attr.relation_name)) ){
+        if (((0 == strcmp(left_table_name,condition.left_attr.relation_name)) && 
+            (0 == strcmp(right_table_name, condition.right_attr.relation_name)))){
                 cond_with_two_table.push_back(condition);
+        }
+        //如果查询的条件里的列名和表的列名顺序相反
+        if(((0 == strcmp(left_table_name, condition.right_attr.relation_name)) && 
+            (0 == strcmp(right_table_name, condition.left_attr.relation_name)))){
+            //切换条件的顺序
+            LOG_DEBUG("find_two_table_condition : before ex condition.right_attr.relation_name is [%s]",condition.right_attr.relation_name);
+            LOG_DEBUG("find_two_table_condition : before ex condition.left_attr.relation_name is [%s]",condition.left_attr.relation_name);
+            strexchg(&condition.left_attr.relation_name, &condition.right_attr.relation_name);
+            strexchg(&condition.left_attr.attribute_name, &condition.right_attr.attribute_name);
+
+            LOG_DEBUG("find_two_table_condition : after ex condition.right_attr.relation_name is [%s]",condition.right_attr.relation_name);
+            LOG_DEBUG("find_two_table_condition : after ex condition.left_attr.relation_name is [%s]",condition.left_attr.relation_name);
+            switch (condition.comp) {
+            case EQUAL_TO:
+                break;
+            case LESS_EQUAL:
+                condition.comp = GREAT_EQUAL;
+                break;
+            case NOT_EQUAL:
+                condition.comp = EQUAL_TO;
+                break;
+            case LESS_THAN:
+                condition.comp = GREAT_THAN;
+                break;
+            case GREAT_EQUAL:
+                condition.comp = LESS_EQUAL;
+                break;
+            case GREAT_THAN:
+                condition.comp = LESS_THAN;
+                break;
+            default:
+                break;
+            }
+            
+            cond_with_two_table.push_back(condition);
         }
     }
     return;

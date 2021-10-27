@@ -158,7 +158,7 @@ public:
     fields_.clear();
   }
 
-  void print(std::ostream &os) const;
+  void print(std::ostream &os,bool is_single_table) const;
 public:
   static void from_table(const Table *table, TupleSchema &schema);
 private:
@@ -188,7 +188,7 @@ public:
   int size() const;
   const Tuple &get(int index) const;
   const std::vector<Tuple> &tuples() const;
-  void print(std::ostream &os) const;
+  void print(std::ostream &os, bool is_single_table) const;
 public:
   const TupleSchema &schema() const {
     return schema_;
