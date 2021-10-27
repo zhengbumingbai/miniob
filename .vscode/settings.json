@@ -62,5 +62,6 @@
         "cerrno": "cpp",
         "cfloat": "cpp",
         "forward_list": "cpp"
-    }
+    },
+    "C_Cpp.errorSquiggles": "Disabled"
 }

@@ -897,6 +897,8 @@ RC Table::update_record(Trx *trx, Record *old_record, Record *record) {
     }
     return rc;
   }
+
+  return rc;
 }
 
 class RecordDeleter {
