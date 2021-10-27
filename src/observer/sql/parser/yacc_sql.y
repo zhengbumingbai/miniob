@@ -86,6 +86,7 @@ ParserContext *get_context(yyscan_t scanner)
         STRING_T
         FLOAT_T
         DATE_T
+        TEXT_T
         HELP
         EXIT
         DOT //QUOTE
@@ -113,6 +114,8 @@ ParserContext *get_context(yyscan_t scanner)
 		NOT
 		NULLTOKEN
 		NULLABLE
+		ISTOKEN
+        TEXT
 
 %union {
   struct _Attr *attr;
@@ -311,6 +314,7 @@ type:
        | FLOAT_T { $$=FLOATS; }
     //    新增DATE_T 属性的token
        | DATE_T { $$=DATES; }
+       | TEXT_T {$$=TEXTS;}
        ;
 ID_get:
 	ID 
@@ -371,6 +375,9 @@ value:
 			$1 = substr($1,1,strlen($1)-2);
   		value_init_date(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
+	|NULLTOKEN {
+		value_init_null(&CONTEXT->values[CONTEXT->value_length++]);
+	}
     ;
 
 delete:		/*  delete 语句的语法解析树*/
@@ -525,6 +532,14 @@ aggr_list:
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
+	| AGGR_COUNT LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 1, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
 	| AGGR_MAX LBRACE NUMBER RBRACE aggr_list {
 		AggrAttr attr;
 		aggr_attr_init(&attr, 3, NULL, NULL);
@@ -539,6 +554,14 @@ aggr_list:
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
+	| AGGR_MAX LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 3, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
 	| AGGR_MIN LBRACE NUMBER RBRACE aggr_list {
 		AggrAttr attr;
 		aggr_attr_init(&attr, 4, NULL, NULL);
@@ -550,6 +573,14 @@ aggr_list:
 		AggrAttr attr;
 		aggr_attr_init(&attr, 4, NULL, NULL);
 		value_init_float(&attr.constant_value, $3);
+		attr.is_constant = 1;
+		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| AGGR_MIN LBRACE SSS RBRACE aggr_list {
+		AggrAttr attr;
+		aggr_attr_init(&attr, 4, NULL, NULL);
+		$3 = substr($3,1,strlen($3)-2);
+		value_init_string(&attr.constant_value, $3);
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
@@ -759,6 +790,8 @@ comOp:
     | LE { CONTEXT->comp = LESS_EQUAL; }
     | GE { CONTEXT->comp = GREAT_EQUAL; }
     | NE { CONTEXT->comp = NOT_EQUAL; }
+	| ISTOKEN { CONTEXT->comp = IS; }
+	| ISTOKEN NOT { CONTEXT->comp = ISNOT; }
     ;
 
 load_data:

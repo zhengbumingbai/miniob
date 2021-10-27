@@ -22,12 +22,13 @@ See the Mulan PSL v2 for more details. */
 #define MAX_ATTR_NAME 20
 #define MAX_ERROR_MESSAGE 20
 #define MAX_DATA 50
+#define TEXT_SIZE 4096
 
 //聚合类型
 typedef enum { AGGR_UNDEFINED, COUNT, AVG, MAX, MIN } AggrType;
 
 //属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, NULLFIELD, TEXTS } AttrType;
 
 //属性值
 typedef struct _Value {
@@ -56,6 +57,8 @@ typedef enum {
   LESS_THAN,    //"<"     3
   GREAT_EQUAL,  //">="    4
   GREAT_THAN,   //">"     5
+  IS,           // is     6
+  ISNOT,        // is not 7
   NO_OP
 } CompOp;
 
@@ -214,6 +217,7 @@ void value_init_date(Value *value, const char *v);
 void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);
 void value_init_string(Value *value, const char *v);
+void value_init_null(Value * value);
 void value_destroy(Value *value);
 
 // std::string trim(const std::string &str);

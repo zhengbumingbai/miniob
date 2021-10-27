@@ -88,11 +88,17 @@ void record_init(Insert_Record *record, Value *value, int value_length)
         record->values[i].data = malloc(sizeof(int));
         memcpy(record->values[i].data, value[i].data, sizeof(int));
         break;
+        case NULLFIELD:
+        record->values[i].data = nullptr;
         default:
             break;
         }
-
-        LOG_DEBUG("value-type: %d data: %d" , value[i].type,*(int *)(value[i].data));
+        if (record->values[i].type == NULLFIELD) {
+          LOG_DEBUG("value-type: nullfield data:nodata");
+        } else {
+          LOG_DEBUG("value-type: %d data: %d" , value[i].type,*(int *)(value[i].data));
+        }
+        
     }
 
 }
@@ -203,9 +209,22 @@ void value_init_date(Value *value, const char *v)
     memcpy(value->data, &time, sizeof(int));
 }
 
+void value_init_null(Value * value) {
+  value->type = NULLFIELD;
+  value->data = nullptr;
+}
+
+void value_init_text(Value *value, const char *v)
+{
+    value->type = TEXTS;
+    value->data = value->data = strdup(v);
+}
+
 void value_destroy(Value *value) {
   value->type = UNDEFINED;
-  free(value->data);
+  if (value->type != AttrType::NULLFIELD) {
+    free(value->data);
+  }
   value->data = nullptr;
 }
 
@@ -243,7 +262,7 @@ void condition_destroy(Condition *condition) {
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, int nullable=0) {
   attr_info->name = strdup(name);
   attr_info->type = type;
-  attr_info->length = length;
+  attr_info->length = length + 1;
   attr_info->nullable = nullable;
 }
 void attr_info_destroy(AttrInfo *attr_info) {
@@ -305,9 +324,13 @@ void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record rec
         inserts->records[i].value_num = records[i].value_num;
         for (size_t j = 0; j< records[i].value_num; j++) {
           inserts->records[i].values[j].type = records[i].values[j].type;
-          inserts->records[i].values[j].data = malloc(sizeof(int));
-          memcpy(inserts->records[i].values[j].data, records[i].values[j].data,
-                 sizeof(int));
+          if (inserts->records[i].values[j].type == NULLFIELD) {
+            inserts->records[i].values[j].data = nullptr;
+          } else {
+            inserts->records[i].values[j].data = malloc(sizeof(int));
+            memcpy(inserts->records[i].values[j].data, records[i].values[j].data,
+                  sizeof(int));
+          }
         }
     }
     inserts->record_num = record_num;

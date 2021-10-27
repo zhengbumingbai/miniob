@@ -354,3 +354,11 @@ select max(t1.a) from t1, t2 where t1.a > 1 and t2.a < 22;
 
 select max(1.1) from t1;
 
+select max(c) from t2;
+
+select max('c') from t2;
+
+select min(c) from t2;
+
+select min('c') from t2;
+

@@ -60,6 +60,7 @@
         "variant": "cpp",
         "bit": "cpp",
         "cerrno": "cpp",
-        "cfloat": "cpp"
+        "cfloat": "cpp",
+        "forward_list": "cpp"
     }
 }

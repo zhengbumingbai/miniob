@@ -182,18 +182,12 @@ public:
 
   void add(Tuple && tuple);
 
-  void replace_aggr_tuple(int i, Tuple && tuple);
-
-  void add_aggr_tuple(Tuple && tuple);
-
   void clear();
 
   bool is_empty() const;
   int size() const;
   const Tuple &get(int index) const;
-  const Tuple &get_aggr(int index) const;
   const std::vector<Tuple> &tuples() const;
-  const std::vector<Tuple> &aggr_tuples() const;
   void print(std::ostream &os) const;
 public:
   const TupleSchema &schema() const {
@@ -201,7 +195,6 @@ public:
   }
 private:
   std::vector<Tuple> tuples_;
-  std::vector<Tuple> aggr_tuples_;
   TupleSchema schema_;
 };
 
@@ -220,9 +213,9 @@ public:
   AggregationRecordConverter(Table *table, TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
 
   ~AggregationRecordConverter(){
-    for (TupleValue* aggr_result : aggr_results_) {
-      delete aggr_result;
-    }
+    // for (TupleValue* aggr_result : aggr_results_) {
+    //   delete aggr_result;
+    // }
     aggr_results_.resize(0);
   }
   void read_record(const char *record);
