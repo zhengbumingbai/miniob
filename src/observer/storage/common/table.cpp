@@ -399,6 +399,7 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
       memcpy(record + field->offset()+field->len()-1, &is_null, 1);
     } else {
       int8_t is_null = 1;
+      memset(record + field->offset(), 0, field->len()-1);
       memcpy(record + field->offset()+field->len()-1, &is_null, 1);
     }
   }
