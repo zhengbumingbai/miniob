@@ -446,16 +446,16 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
     // 如果属性类型是TEXTS 那么就将值存储到文件中
-    if(field.type == TEXTS) {
-        // 为了将\0也写入页中所以加上
-        int value_length = strlen(value.data) + 1;
-        char * data = value.data;
-        TextManager text;
-        int offset = 0;
-        text.WriteText(&offset, data, value_length);
-        *(int*)value.data = offset;
-        // TODO 
-    }
+    // if(field.type == TEXTS) {
+    //     // 为了将\0也写入页中所以加上
+    //     int value_length = strlen(value.data) + 1;
+    //     char * data = value.data;
+    //     TextManager text;
+    //     int offset = 0;
+    //     text.WriteText(&offset, data, value_length);
+    //     *(int*)value.data = offset;
+    //     // TODO 
+    // }
 
 
     if (value.type != AttrType::NULLFIELD) {

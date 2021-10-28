@@ -12,7 +12,7 @@ RC TextManager::WriteText(int *offset, char *data, int length) {
   //   返回该TEXT的偏移
   *offset = offset_;
   // 写入数据到偏移处
-  ret = lseek(fd_, *offset * TEXT_SIZE, SEEK_SET);
+  ret = lseek(fd_, *offset * TEXT_MAX_LENGTH, SEEK_SET);
   if (ret == -1) return RC::GENERIC_ERROR;
   ret = write(fd_, data, length);
   if (ret == -1) return RC::GENERIC_ERROR;
@@ -27,7 +27,7 @@ RC TextManager::WriteText(int *offset, char *data, int length) {
 
 RC TextManager::ReadText(int offset, char *data, int length) {
   int ret = 0;
-  ret = lseek(fd_, offset * TEXT_SIZE, SEEK_SET);
+  ret = lseek(fd_, offset * TEXT_MAX_LENGTH, SEEK_SET);
   if (ret == -1) return RC::GENERIC_ERROR;
   ret = read(fd_, data, length);
   if (ret == -1) return RC::GENERIC_ERROR;

@@ -11,7 +11,7 @@
 #include "common/lang/bitmap.h"
 #include "rc.h"
 
-const static int TEXT_SIZE = 4096;
+const static int TEXT_MAX_LENGTH = 4096;
 
 class TextManager {
  public:
