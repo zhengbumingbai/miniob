@@ -370,8 +370,13 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         bool is_single_table = true;
         // 当前只查询一张表，直接返回结果即可
         TupleSet table_selected;
-        select_columns(tuple_sets[0], selects, table_selected, is_single_table);
-        table_selected.print(ss, is_single_table);
+        if (selects.aggr_num > 0) {
+            tuple_sets[0].print(ss, is_single_table);
+        } else {
+            select_columns(tuple_sets[0], selects, table_selected, is_single_table);
+            table_selected.print(ss, is_single_table);
+        }
+
     }
 
     for (ExecutionNode *&tmp_node : select_nodes)
