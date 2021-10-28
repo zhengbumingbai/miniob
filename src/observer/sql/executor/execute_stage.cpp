@@ -699,23 +699,34 @@ void strexchg(char **a, char **b){
     *a=*b;
     *b=c;
 }
+//判断一个join过的TupleSchema里是否有某个表名
+bool exist_tabl_name(const TupleSchema& schema, const char* table_name)
+{
+    std::vector<TupleField> fields = schema.fields();
+    for(int i = 0; i < fields.size(); i++){
+        if((0 == strcmp(fields[i].table_name(), table_name))){
+            return true;
+        }
+    }
+    return false;
+}
 
 //add by cmk : 找到和两个表有关的conditions
+//(注意在3表以上的多表查询时，TupleSchema里可能有多个表名)
 void find_two_table_condition(const TupleSchema& left_table_schema, 
                                 const TupleSchema& right_table_schema, 
                                     const std::vector<Condition>& conditions,
                                      std::vector<Condition>& cond_with_two_table )
 {
-    const char * left_table_name = left_table_schema.field(0).table_name();
-    const char * right_table_name = right_table_schema.field(0).table_name();
+
     for(auto condition : conditions){
-        if (((0 == strcmp(left_table_name,condition.left_attr.relation_name)) && 
-            (0 == strcmp(right_table_name, condition.right_attr.relation_name)))){
+        if (((true == exist_tabl_name(left_table_schema,condition.left_attr.relation_name)) && 
+            (true == exist_tabl_name(right_table_schema, condition.right_attr.relation_name)))){
                 cond_with_two_table.push_back(condition);
         }
         //如果查询的条件里的列名和表的列名顺序相反
-        if(((0 == strcmp(left_table_name, condition.right_attr.relation_name)) && 
-            (0 == strcmp(right_table_name, condition.left_attr.relation_name)))){
+        if(((true == exist_tabl_name(left_table_schema, condition.right_attr.relation_name)) && 
+            (true == exist_tabl_name(right_table_schema, condition.left_attr.relation_name)))){
             //切换条件的顺序
             LOG_DEBUG("find_two_table_condition : before ex condition.right_attr.relation_name is [%s]",condition.right_attr.relation_name);
             LOG_DEBUG("find_two_table_condition : before ex condition.left_attr.relation_name is [%s]",condition.left_attr.relation_name);
