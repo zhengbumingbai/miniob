@@ -46,7 +46,8 @@ class BplusTreeIndexScanner : public IndexScanner {
 public:
   BplusTreeIndexScanner(BplusTreeScanner *tree_scanner);
   ~BplusTreeIndexScanner() noexcept override;
-
+  
+  RC back_1_step() override;
   RC next_entry(RID *rid) override;
   RC destroy() override;
 private:
