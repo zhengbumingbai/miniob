@@ -107,6 +107,7 @@ RC BplusTreeIndex::delete_entry(const char *record, const RID *rid) {
     return rc;
 }
 
+
 IndexScanner *BplusTreeIndex::create_scanner(std::vector<CompareObject> compare_objects) {
   BplusTreeScanner *bplus_tree_scanner = new BplusTreeScanner(index_handler_);
   RC rc = bplus_tree_scanner->open(compare_objects);
@@ -132,6 +133,10 @@ BplusTreeIndexScanner::BplusTreeIndexScanner(BplusTreeScanner *tree_scanner) :
 BplusTreeIndexScanner::~BplusTreeIndexScanner() noexcept {
   tree_scanner_->close();
   delete tree_scanner_;
+}
+
+ RC BplusTreeIndexScanner::back_1_step() {
+    return tree_scanner_->back_1_step();
 }
 
 RC BplusTreeIndexScanner::next_entry(RID *rid) {

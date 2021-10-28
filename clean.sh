@@ -1,0 +1,1 @@
+rm ./miniob/db/sys/*

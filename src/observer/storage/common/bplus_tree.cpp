@@ -295,7 +295,7 @@ RC BplusTreeHandler::find_leaf(const char *pkey, PageNum *leaf_page) {
       tmp = CmpKey(file_header_.attrs, file_header_.attr_num, pkey,
                    node->keys + i * file_header_.key_length,
                    file_header_.isUnique);
-      //   找到第一个小于大于该key的node 可以在其左侧继续查找 但是没有保存数据
+      //   找到第一个大于该key的node 可以在其左侧继续查找 但是没有保存数据
       //   只有叶子节点才保存数据
       if (tmp < 0) break;
     }
@@ -952,8 +952,8 @@ RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
 
     // zt 插入到叶子节点中
     rc = insert_into_leaf(leaf_page, key, rid);
-    LOG_DEBUG("After insert in leaf.");
-    print_tree();
+    // LOG_DEBUG("After insert in leaf.");
+    // print_tree();
     if (rc != SUCCESS) {
       free(key);
       return rc;
@@ -1613,8 +1613,8 @@ RC BplusTreeHandler::delete_entry(const char *data, const RID *rid) {
     return rc;
   }
   rc = delete_entry_internal(leaf_page, pkey);
-  LOG_DEBUG("After delete in leaf.");
-  print_tree();
+//   LOG_DEBUG("After delete in leaf.");
+//   print_tree();
   if (rc != SUCCESS) {
     free(pkey);
     return rc;
@@ -1720,7 +1720,9 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key,
   }
   rid.page_num = -1;
   rid.slot_num = -1;
-  pkey = (char *)malloc(file_header_.key_length);
+//   zt初始化为0 然后填充第一个部分
+// 
+  pkey = (char *)calloc(1, file_header_.key_length);
   if (pkey == nullptr) {
     LOG_ERROR("Failed to alloc memory for key. size=%d",
               file_header_.key_length);
@@ -1734,7 +1736,7 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key,
     memset(pkey, 0, attr_length - 1);
     *(int8_t *)(pkey + attr_length - 1) = int8_t(1);
   } else {
-    memcpy(pkey, key, attr_length);
+    memcpy(pkey, key, attr_length - 1);
   }
 
   memcpy(pkey + attr_length, &rid, sizeof(RID));
@@ -1764,6 +1766,7 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key,
       // 只比较最左字段
       // tmp = CmpKey(file_header_.attrs, 1
       // ,key,node->keys+(i*file_header_.key_length),1);
+      LOG_DEBUG("检查key 是否满足要求");
       tmp = CompareKey(node->keys + i * file_header_.key_length, key,
                        file_header_.attrs[0].attr_type,
                        file_header_.attrs[0].attr_length);
@@ -1896,6 +1899,7 @@ RC BplusTreeScanner::open(std::vector<CompareObject> &compare_objects) {
     return RC::SCHEMA_FIELD_NAME_ILLEGAL;
   }
 
+// zt传入的只是第一个条件的比较符号和第一个条件的value
   rc = index_handler_.find_first_index_satisfied(
       compare_objects[0].comp_op_, compare_objects[0].value_, &next_page_num_,
       &index_in_node_);
@@ -1911,6 +1915,11 @@ RC BplusTreeScanner::open(std::vector<CompareObject> &compare_objects) {
   pinned_page_count_ = 0;
   opened_ = true;
   return SUCCESS;
+}
+
+RC BplusTreeScanner::back_1_step(){
+    index_in_node_--;
+    return SUCCESS;
 }
 
 RC BplusTreeScanner::close() {
@@ -2005,11 +2014,11 @@ RC BplusTreeScanner::get_next_idx_in_memory(RID *rid) {
 
     node = index_handler_.get_index_node(pdata);
     for (; index_in_node_ < node->key_num; index_in_node_++) {
-      if (satisfy_condition(node->keys +
-                            index_in_node_ *
-                                index_handler_.file_header_.key_length)) {
+      if (satisfy_condition(node->keys + index_in_node_ * index_handler_.file_header_.key_length)) {
         memcpy(rid, node->rids + index_in_node_, sizeof(RID));
+        LOG_DEBUG("找到一个满足要求的rid: page num: %d, slot num: %d", rid->page_num, rid->slot_num);
         index_in_node_++;
+        // print_tree();
         return SUCCESS;
       }
     }
