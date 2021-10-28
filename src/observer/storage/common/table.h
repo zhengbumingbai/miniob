@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_STORAGE_COMMON_TABLE_H__
 
 #include "storage/common/table_meta.h"
+#include "text_manager.h"
 
 class DiskBufferPool;
 class RecordFileHandler;
@@ -95,7 +96,7 @@ private:
 private:
   friend class RecordUpdater;
   friend class RecordDeleter;
-
+  bool check_record_duplicate(Record *record1,Record *record12);
   RC update_entry_of_indexes(const char *old_record, const char *record, const RID &rid, bool error_on_not_exists);
   RC insert_entry_of_indexes(const char *record, const RID &rid);
   RC delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists);

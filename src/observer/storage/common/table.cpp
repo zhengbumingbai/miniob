@@ -42,6 +42,54 @@ bool file_exist(const char *file) {
   }
 }
 
+// zt 由于我要比较函数指针 所以必须要先把 RecordUpdater 和 record_reader_update_adapter放在scan_record
+class RecordUpdater {
+ public:
+  RecordUpdater(Table &table, Trx *trx, const char *attribute_name,
+                const Value *value)
+      : table_(table),
+        trx_(trx),
+        attribute_name_(attribute_name),
+        value_(value) {}
+
+  RC update_record(Record *old_record) {
+    RC rc = RC::SUCCESS;
+
+    Record *edited_record = new Record();
+    Record *copy_old_record = new Record();
+    edited_record->rid = old_record->rid;
+    copy_old_record->rid = old_record->rid;
+    rc = table_.make_updated_record(old_record->data, attribute_name_, value_,
+                                    edited_record->data, copy_old_record->data);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+    rc = table_.update_record(trx_, copy_old_record, edited_record);
+    if (rc == RC::SUCCESS) {
+      updated_count_++;
+    }
+
+    delete[] edited_record->data;
+    delete[] copy_old_record->data;
+    return rc;
+  }
+
+  int updated_count() const { return updated_count_; }
+
+ private:
+  Table &table_;
+  Trx *trx_;
+  const char *attribute_name_;
+  const Value *value_;
+  int updated_count_ = 0;
+};
+
+static RC record_reader_update_adapter(Record *record, void *context) {
+  RecordUpdater &record_updater = *(RecordUpdater *)context;
+  return record_updater.update_record(record);
+}
+
+
 Table::Table()
     : data_buffer_pool_(nullptr), file_id_(-1), record_handler_(nullptr) {}
 
@@ -362,10 +410,15 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
     return RC::SCHEMA_FIELD_MISSING;
   }
 
+// 合法性校验
   const int normal_field_start_index = table_meta_.sys_field_num();
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
+//zt 值的类型是字符串但是field类型是TEXTS是合法的
+    if(value.type == CHARS && field->type()== TEXTS ){
+        continue;
+    }
     // zt 校验UNIX时间戳是否合法
     if (value.type == DATES && *(int *)value.data == INT32_MIN) {
       LOG_DEBUG("INSERT DATES TYPE INVAILD");
@@ -392,6 +445,18 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
+    // 如果属性类型是TEXTS 那么就将值存储到文件中
+    if(field.type == TEXTS) {
+        // 为了将\0也写入页中所以加上
+        int value_length = strlen(value.data) + 1;
+        char * data = value.data;
+        TextManager text;
+        int offset = 0;
+        text.WriteText(&offset, data, value_length);
+        *(int*)value.data = offset;
+        // TODO 
+    }
+
 
     if (value.type != AttrType::NULLFIELD) {
       int8_t is_null = 0;
@@ -402,6 +467,8 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
       memset(record + field->offset(), 0, field->len() - 1);
       memcpy(record + field->offset() + field->len() - 1, &is_null, 1);
     }
+
+
   }
 
   record_out = record;
@@ -588,10 +655,16 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit,
   return rc;
 }
 
+// 如果在更新record的过程中更新了索引 可能导致索引遍历不完全，因为BPlusTreeScanner会记录当前遍历的位置 pos，
+// 如果我们索引内容移动，比如 原本是 0 1 2，现在指向遍历过0，现在指向1 之后更新索引，删除0，再插入0，并且移动到12后面，变成1 2 0，那么就会指向2 ，并且再次遍历 0！！
+// 所以如果有更新至少要回退一个位置 修改代价很大 暂时，改为每次都是从头遍历 
+// 最好加个判断如果内容一样就不更新
+
 RC Table::scan_record_by_index(Trx *trx, IndexScanner *scanner,
                                ConditionFilter *filter, int limit,
                                void *context,
                                RC (*record_reader)(Record *, void *)) {
+  LOG_DEBUG("走索引");
   RC rc = RC::SUCCESS;
   RID rid;
   Record record;
@@ -617,11 +690,24 @@ RC Table::scan_record_by_index(Trx *trx, IndexScanner *scanner,
     if ((trx == nullptr || trx->is_visible(this, &record)) &&
         (filter == nullptr || filter->filter(record))) {
       rc = record_reader(&record, context);
-      if (rc != RC::SUCCESS) {
-        LOG_TRACE("Record reader break the table scanning. rc=%d:%s", rc,
-                  strrc(rc));
-        break;
-      }
+      if(record_reader == record_reader_update_adapter){
+          if(rc==SUCCESS){
+          LOG_DEBUG("更新成功 指针回退一个位置 避免由于索引移位跳过数据");
+            scanner->back_1_step();
+          }else if(rc==RC::RECORD_DUPLICATE_KEY){
+              LOG_DEBUG("不需要更新索引 数据相同");
+          }else {
+              LOG_TRACE("Record reader break the table scanning. rc=%d:%s", rc,
+                        strrc(rc));
+                break;
+          }
+        }else{
+            if (rc != RC::SUCCESS) {
+                LOG_TRACE("Record reader break the table scanning. rc=%d:%s", rc,
+                        strrc(rc));
+                break;
+            }
+        }
     }
 
     record_count++;
@@ -761,52 +847,6 @@ RC Table::create_index(Trx *trx, const char *index_name,
   return rc;
 }
 
-class RecordUpdater {
- public:
-  RecordUpdater(Table &table, Trx *trx, const char *attribute_name,
-                const Value *value)
-      : table_(table),
-        trx_(trx),
-        attribute_name_(attribute_name),
-        value_(value) {}
-
-  RC update_record(Record *old_record) {
-    RC rc = RC::SUCCESS;
-
-    Record *edited_record = new Record();
-    Record *copy_old_record = new Record();
-    edited_record->rid = old_record->rid;
-    copy_old_record->rid = old_record->rid;
-    rc = table_.make_updated_record(old_record->data, attribute_name_, value_,
-                                    edited_record->data, copy_old_record->data);
-    if (rc != RC::SUCCESS) {
-      return rc;
-    }
-    rc = table_.update_record(trx_, copy_old_record, edited_record);
-    if (rc == RC::SUCCESS) {
-      updated_count_++;
-    }
-
-    delete[] edited_record->data;
-    delete[] copy_old_record->data;
-    return rc;
-  }
-
-  int updated_count() const { return updated_count_; }
-
- private:
-  Table &table_;
-  Trx *trx_;
-  const char *attribute_name_;
-  const Value *value_;
-  int updated_count_ = 0;
-};
-
-static RC record_reader_update_adapter(Record *record, void *context) {
-  RecordUpdater &record_updater = *(RecordUpdater *)context;
-  return record_updater.update_record(record);
-}
-
 // 第三题
 RC Table::update_record(Trx *trx, const char *attribute_name,
                         const Value *value, int condition_num,
@@ -825,8 +865,20 @@ RC Table::update_record(Trx *trx, const char *attribute_name,
   return rc;
 }
 
+bool Table::check_record_duplicate(Record *record1,Record *record2){
+    if(record1->rid.page_num != record2->rid.page_num) return false;
+    if(record1->rid.slot_num != record2->rid.slot_num) return false;
+    return (memcmp(record1->data,record2->data,Table::table_meta_.record_size()) == 0);
+}
+
 RC Table::update_record(Trx *trx, Record *old_record, Record *record) {
   RC rc = RC::SUCCESS;
+  bool isDuplicate = check_record_duplicate(old_record,record);
+//   zt 如果内容相同就不更新 避免索引的改变
+  if(isDuplicate) {
+      LOG_DEBUG("不需要更新直接返回");
+    return RC::RECORD_DUPLICATE_KEY;    
+  }
 
   rc = record_handler_->update_record(record);
   if (rc != RC::SUCCESS) {
@@ -1174,6 +1226,7 @@ IndexScanner *Table::find_index_for_scan(
   int filter_num = filters.filter_num();
   std::vector<std::string> attribute_names;
   std::vector<CompareObject> compare_objects;
+  
   for (int i = 0; i < filter_num; i++) {
     const DefaultConditionFilter *filter =
         dynamic_cast<const DefaultConditionFilter *>(&(filters.filter(i)));
@@ -1225,6 +1278,7 @@ IndexScanner *Table::find_index_for_scan(
 
   return index->create_scanner(compare_objects);
 }
+
 RC Table::sync() {
   RC rc = data_buffer_pool_->flush_all_pages(file_id_);
   if (rc != RC::SUCCESS) {

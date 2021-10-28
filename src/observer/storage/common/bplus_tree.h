@@ -155,6 +155,7 @@ public:
 // zt  修改为多列
   RC open(std::vector<CompareObject> &compare_objects);
 
+  RC back_1_step();
   /**
    * 用于继续索引扫描，获得下一个满足条件的索引项，
    * 并返回该索引项对应的记录的ID

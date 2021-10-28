@@ -170,7 +170,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
     right_value = (char *)right_.value;
   }
 
-  int cmp_result = 0;
+  double cmp_result = 0;
   switch (attr_type_) {
     case CHARS: {  // 字符串都是定长的，直接比较
       // 按照C字符串风格来定
@@ -197,7 +197,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
       }
       float left = *(float *)left_value;
       float right = *(float *)right_value;
-      cmp_result = (int)(left - right);
+      cmp_result = left - right;
     } break;
       break;
     default: {
