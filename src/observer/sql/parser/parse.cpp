@@ -259,6 +259,7 @@ void condition_destroy(Condition *condition) {
   }
 }
 
+//zt 长度 +1
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, int nullable=0) {
   attr_info->name = strdup(name);
   attr_info->type = type;
