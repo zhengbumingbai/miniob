@@ -653,14 +653,18 @@ RC select_column_names(const TupleSchema& old_schema, const Selects& selects, Tu
                 }
             }else{ //单表
                 LOG_DEBUG("SINGLE");
-                if((0 == strcmp(attr.attribute_name, "*")) || 
-                     ((nullptr ==  attr.relation_name) && (0 == strcmp(field.field_name(), attr.attribute_name))) || 
-                    ((0 == strcmp(field.table_name(), attr.relation_name)) && (0 == strcmp(field.field_name(), attr.attribute_name))) ){
-                    LOG_DEBUG("select_columns_name() single table: new_schema table name is [%s],field name is [%s]",field.table_name(),field.field_name());
-                    new_schema.add_if_not_exists(field.type(), field.table_name(), field.field_name());
+                if (nullptr ==  attr.relation_name) {
+                    if (0 == strcmp(field.field_name(), attr.attribute_name) || (0 == strcmp(attr.attribute_name, "*"))) {
+                        LOG_DEBUG("select_columns_name() single table: new_schema table name is [%s],field name is [%s]",field.table_name(),field.field_name());
+                        new_schema.add_if_not_exists(field.type(), field.table_name(), field.field_name());
+                    }
+                } else {
+                    if(((0 == strcmp(field.table_name(), attr.relation_name)) && (0 == strcmp(field.field_name(), attr.attribute_name)))){
+                        LOG_DEBUG("select_columns_name() single table: new_schema table name is [%s],field name is [%s]",field.table_name(),field.field_name());
+                        new_schema.add_if_not_exists(field.type(), field.table_name(), field.field_name());
+                    }
                 }
             }
-
         }
     }
     if(new_schema.fields().size() <=0 ){
