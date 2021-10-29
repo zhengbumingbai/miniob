@@ -445,16 +445,16 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
-    // 如果属性类型是TEXTS 那么就将值存储到文件中
-    // if(field.type == TEXTS) {
+    // 如果属性类型是TEXTS 那么就将值存储到文件中 返回的偏移作为TEXT的values
+    // if(field->type() == TEXTS) {
     //     // 为了将\0也写入页中所以加上
-    //     int value_length = strlen(value.data) + 1;
-    //     char * data = value.data;
+    //     char * data = (char *)value.data;
+    //     int value_length = strlen(data) + 1;
     //     TextManager text;
     //     int offset = 0;
     //     text.WriteText(&offset, data, value_length);
     //     *(int*)value.data = offset;
-    //     // TODO 
+    //     text.CloseFile;
     // }
 
 
@@ -582,6 +582,7 @@ class RecordReaderScanAdapter {
   void (*record_reader_)(const char *, void *);
   void *context_;
 };
+
 static RC scan_record_reader_adapter(Record *record, void *context) {
   RecordReaderScanAdapter &adapter = *(RecordReaderScanAdapter *)context;
   adapter.consume(record);
