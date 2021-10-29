@@ -42,3 +42,6 @@ my_local_test
 miniob
 run_make_sql.sh
 test.tmp
+clean.sh
+TEXT.data
+
