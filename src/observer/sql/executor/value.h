@@ -255,4 +255,41 @@ public:
     }
 };
 
+class TextValue : public TupleValue
+{
+public:
+    TextValue(const char *value, int len) : value_(value, len)
+    {
+    }
+    explicit TextValue(const char *value) : value_(value)
+    {
+    }
+
+    void to_string(std::ostream &os) const override
+    {
+        os << value_;
+    }
+
+    int compare(const TupleValue &other) const override
+    {
+        const TextValue &string_other = (const TextValue &)other;
+        return strcmp(value_.c_str(), string_other.value_.c_str());
+    }
+
+    int type() const override
+    {
+        return ValueType::STRING;
+    }
+
+    std::string value() {
+        return value_;
+    }
+
+    void replace(std::string value) {
+        value_ = value;
+    }
+private:
+    std::string value_;
+};
+
 #endif //__OBSERVER_SQL_EXECUTOR_VALUE_H_

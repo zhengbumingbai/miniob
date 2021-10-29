@@ -445,17 +445,18 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
-    // 如果属性类型是TEXTS 那么就将值存储到文件中
-    // if(field.type == TEXTS) {
-    //     // 为了将\0也写入页中所以加上
-    //     int value_length = strlen(value.data) + 1;
-    //     char * data = value.data;
-    //     TextManager text;
-    //     int offset = 0;
-    //     text.WriteText(&offset, data, value_length);
-    //     *(int*)value.data = offset;
-    //     // TODO 
-    // }
+    // 如果属性类型是TEXTS 那么就将值存储到文件中 返回的偏移作为TEXT的values
+    if(field->type() == TEXTS) {
+        // 为了将\0也写入页中所以加上
+        char * data = (char *)value.data;
+        int value_length = strlen(data) + 1;
+        TextManager text;
+        int offset = 0;
+        text.WriteText(&offset, data, value_length);
+        LOG_DEBUG("写入TEXT LENGTH:%d OFFSET:%d TEXT: %s",value_length, offset, data);
+        *(int*)value.data = offset;
+        text.CloseFile();
+    }
 
 
     if (value.type != AttrType::NULLFIELD) {
@@ -487,6 +488,12 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     if (std::string(field->name()) == std::string(attribute_name)) {
       attribute_loc = i;
+
+      //zt 值的类型是字符串但是field类型是TEXTS是合法的
+      if(value->type == CHARS && field->type()== TEXTS ){
+        //   找到合法的 break出去
+        break;
+      }
       // zt 校验UNIX时间戳是否合法
       if (value->type == DATES && *(int *)value->data == INT32_MIN) {
         LOG_DEBUG("INSERT DATES TYPE INVAILD");
@@ -526,6 +533,15 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
   const FieldMeta *field =
       table_meta_.field(attribute_loc + normal_field_start_index);
   if (value->type != AttrType::NULLFIELD) {
+    // zt  如果是TEXT类型 就产生一片磁盘空间存储新值
+    if(value->type==CHARS && field->type()==TEXTS){
+        TextManager text;
+        int offset_in_file = 0;
+        text.WriteText(&offset_in_file,(char *)value->data,strlen((char *)value->data) + 1);
+        text.CloseFile();
+        *(int *)(value->data)  = offset_in_file;
+    }
+   
     int8_t is_null = 0;
     memcpy(record + field->offset(), value->data, field->len() - 1);
     memcpy(record + field->offset() + field->len() - 1, &is_null, 1);
@@ -582,6 +598,7 @@ class RecordReaderScanAdapter {
   void (*record_reader_)(const char *, void *);
   void *context_;
 };
+
 static RC scan_record_reader_adapter(Record *record, void *context) {
   RecordReaderScanAdapter &adapter = *(RecordReaderScanAdapter *)context;
   adapter.consume(record);

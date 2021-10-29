@@ -30,6 +30,7 @@ const char *ATTR_TYPE_NAME[] = {
   "ints",
   "floats",
   "dates",
+  "nullfield",
   "texts"
 };
 

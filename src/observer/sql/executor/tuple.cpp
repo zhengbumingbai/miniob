@@ -453,6 +453,29 @@ void TupleRecordConverter::add_record(const char *record) {
         
       }
       break;
+      case TEXTS:
+      { 
+        int8_t is_null;
+        memcpy(&is_null, record+field_meta->offset()+field_meta->len()-1, 1);
+        if (is_null == 0) {
+          //   LOG_ERROR("DATES type test-1!");
+          int value = *(int *)(record + field_meta->offset()); //value 是在TEXT文件中的page偏移
+          //   LOG_ERROR("DATES type test-2!");
+          TextManager text;
+          int str_len = 0;
+          text.GetLen(value, &str_len);
+          char * data = (char *)calloc(1, str_len);
+          text.ReadText(value, data, str_len);
+          LOG_DEBUG("输出TEXT OFFSET: %d, LENGTH:%d TEXT: %s",value,str_len, data);
+          tuple.add(data,str_len);
+          text.CloseFile();
+          //   LOG_ERROR("DATES type test-3!");
+        } else {
+          tuple.add(new NullValue());
+        }
+        
+      }
+      break;
       default: {
         LOG_PANIC("Unsupported field type. type=%d", field_meta->type());
       }
