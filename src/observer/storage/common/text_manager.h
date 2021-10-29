@@ -8,7 +8,8 @@
 
 #include <string>
 
-#include "common/lang/bitmap.h"
+// #include "common/lang/bitmap.h"
+#include "common/log/log.h"
 #include "rc.h"
 
 const static int TEXT_MAX_LENGTH = 4096;
