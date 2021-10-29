@@ -460,6 +460,36 @@ static RC schema_add_aggr_field(const AggrAttr* aggr, Table *table, const char *
     return RC::SUCCESS;
 }
 
+RC aggr_execution(const Selects &selects, const char *db, TupleSet& tupleset_in, TupleSet& tupleset_out) {
+    RC rc = RC::SUCCESS;
+    TupleSchema schema;
+    std::vector<const AggrAttr *> attrs;
+    if (selects.aggr_num > 0) {
+        for (int i = selects.aggr_num - 1; i >= 0; i--) {
+            // 反向遍历以与输入顺序对齐
+            const AggrAttr &attr = selects.aggr_attr[i];
+            Table *table = DefaultHandler::get_default().find_table(db, attr.relation_name);
+            if (nullptr == table)
+            {
+                LOG_WARN("No such table [%s] in db [%s]", attr.relation_name, db);
+                return RC::SCHEMA_TABLE_NOT_EXIST;
+            }
+            const TableMeta &table_meta = table->table_meta();
+            attrs.push_back(&attr);
+            schema_add_aggr_field(&attr, table, attr.attribute_name, schema);
+            if (rc != RC::SUCCESS)
+            {
+                return rc;
+            }
+        }
+    }
+    AggregationRecordConverter converter(nullptr, tupleset_out, attrs);
+    for (int i=0; i < tupleset_in.size(); i++) {
+        converter.read_tuple(tupleset_in.get(i));
+    }
+    return rc;
+}
+
 RC create_selection_aggregation_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectAggregationExeNode &select_node) {
     // 列出跟这张表关联的Attr
     TupleSchema schema;
@@ -741,13 +771,8 @@ void find_two_table_condition(const TupleSchema& left_table_schema,
             LOG_DEBUG("find_two_table_condition : after ex condition.right_attr.relation_name is [%s]",condition.right_attr.relation_name);
             LOG_DEBUG("find_two_table_condition : after ex condition.left_attr.relation_name is [%s]",condition.left_attr.relation_name);
             switch (condition.comp) {
-            case EQUAL_TO:
-                break;
             case LESS_EQUAL:
                 condition.comp = GREAT_EQUAL;
-                break;
-            case NOT_EQUAL:
-                condition.comp = EQUAL_TO;
                 break;
             case LESS_THAN:
                 condition.comp = GREAT_THAN;
@@ -784,28 +809,134 @@ void find_two_table_condition(const TupleSchema& left_table_schema,
         auto& left = left_tuple.get(tuple_value_left_index);
         auto& right = right_tuple.get(tuple_value_right_index);
 
-        int cmp_result = 0;
+        double cmp_result = 0;
         cmp_result = left.compare(right);
         LOG_INFO("CMP_RESULT is [%d]",cmp_result);
+        ValueType left_attr_type = left.type();
+        ValueType right_attr_type = right.type();
 
+        if (left_attr_type != right_attr_type) {
+            if (left_attr_type != ValueType::NULLTYPE && right_attr_type != ValueType::NULLTYPE) {
+                if (!((left_attr_type == ValueType::INT && right_attr_type == ValueType::FLOAT) || (left_attr_type == ValueType::FLOAT && right_attr_type == ValueType::INT))) {
+                    LOG_DEBUG("Type left not the same as type right");
+                    return false;
+                }
+            }
+        }
+        switch (left_attr_type) {
+            case ValueType::STRING: {  // 字符串都是定长的，直接比较
+                // 按照C字符串风格来定
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    break;
+                }
+                cmp_result = left.compare(right);
+            } 
+            break;
+            // DATES 底层于INTS采取相同存储方式
+            case ValueType::DATE:
+            case ValueType::INT: {
+                // 没有考虑大小端问题
+                // 对int和float，要考虑字节对齐问题,有些平台下直接转换可能会跪
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    break;
+                }
+                const IntValue& int_left = (const IntValue&)left;
+                double left_in = int_left.value();
+                double right_in;
+                if (right_attr_type == ValueType::INT) {
+                    const IntValue& int_right = (const IntValue&)right;
+                    right_in = int_right.value();
+                } else if(right_attr_type == ValueType::DATE) {
+                    const DateValue& date_right = (const DateValue&)right;
+                    right_in = date_right.value();
+                } 
+                else {
+                    const FloatValue& date_right = (const FloatValue&)right;
+                    right_in = date_right.value();
+                }
+                cmp_result = left_in - right_in;
+            }
+            break;
+            case FLOATS: {
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    break;
+                }
+                const FloatValue& float_left = (const FloatValue&)left;
+                double left_in = float_left.value();
+                double right_in;
+                if (right_attr_type == ValueType::INT) {
+                    const IntValue& int_right = (const IntValue&)right;
+                    right_in = int_right.value();
+                } else if(right_attr_type == ValueType::DATE) {
+                    const DateValue& date_right = (const DateValue&)right;
+                    right_in = date_right.value();
+                } 
+                else {
+                    const FloatValue& date_right = (const FloatValue&)right;
+                    right_in = date_right.value();
+                }
+                cmp_result = left_in - right_in;
+            } 
+            break;
+            default: {
+            }
+        }
         switch (condition.comp) {
             case EQUAL_TO:
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    matched_tuple = false;
+                    break;
+                }
                 matched_tuple = (0 == cmp_result);
                 break;
             case LESS_EQUAL:
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    matched_tuple = false;
+                    break;
+                }
                 matched_tuple = (cmp_result <= 0);
                 break;
             case NOT_EQUAL:
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    matched_tuple = false;
+                    break;
+                }
                 matched_tuple = (cmp_result != 0);
                 break;
             case LESS_THAN:
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    matched_tuple = false;
+                    break;
+                }
                 matched_tuple = (cmp_result < 0);
                 break;
             case GREAT_EQUAL:
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    matched_tuple = false;
+                    break;
+                }
                 matched_tuple = (cmp_result >= 0);
                 break;
             case GREAT_THAN:
+                if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
+                    matched_tuple = false;
+                    break;
+                }
                 matched_tuple = (cmp_result > 0);
+                break;
+            case IS:
+                if (NULLTYPE == left_attr_type && NULLTYPE == right_attr_type ) {
+                    matched_tuple = true;
+                } else {
+                    matched_tuple = false;
+                }
+                break;
+            case ISNOT:
+                if ((NULLTYPE != left_attr_type && NULLTYPE == right_attr_type) || (NULLTYPE == left_attr_type && NULLTYPE != right_attr_type)) {
+                    matched_tuple = true;
+                } else {
+                    matched_tuple = false;
+                }
                 break;
             default:
                 matched_tuple = false;

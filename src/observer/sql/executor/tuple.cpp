@@ -515,7 +515,7 @@ AggregationRecordConverter::AggregationRecordConverter(Table *table, TupleSet &t
       }
 }
 
-void read_tuple(Tuple& tuple) {
+void AggregationRecordConverter::read_tuple(const Tuple& tuple) {
   
 }
 

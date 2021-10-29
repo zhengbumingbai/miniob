@@ -262,7 +262,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
       }
       
     case ISNOT:
-      if (nullptr != left_value && nullptr == right_value ) {
+      if ((nullptr != left_value && nullptr == right_value) ||  (nullptr == left_value && nullptr != right_value)) {
         return true;
       } else {
         return false;
