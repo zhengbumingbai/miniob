@@ -276,7 +276,7 @@ public:
         return strcmp(value_.c_str(), string_other.value_.c_str());
     }
 
-    int type() const override
+    ValueType type() const override
     {
         return ValueType::STRING;
     }
