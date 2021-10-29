@@ -198,7 +198,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
       }
       double left = *(int *)left_value;
       double right;
-      if (right_attr_type_ == AttrType::INTS) {
+      if (right_attr_type_ == AttrType::INTS || right_attr_type_ == AttrType::DATES) {
         right = *(int *)right_value;
       } else {
         right = *(float *)right_value;
