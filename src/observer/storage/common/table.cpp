@@ -410,10 +410,15 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
     return RC::SCHEMA_FIELD_MISSING;
   }
 
+// 合法性校验
   const int normal_field_start_index = table_meta_.sys_field_num();
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
+//zt 值的类型是字符串但是field类型是TEXTS是合法的
+    if(value.type == CHARS && field->type()== TEXTS ){
+        continue;
+    }
     // zt 校验UNIX时间戳是否合法
     if (value.type == DATES && *(int *)value.data == INT32_MIN) {
       LOG_DEBUG("INSERT DATES TYPE INVAILD");
@@ -440,6 +445,18 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
+    // 如果属性类型是TEXTS 那么就将值存储到文件中
+    // if(field.type == TEXTS) {
+    //     // 为了将\0也写入页中所以加上
+    //     int value_length = strlen(value.data) + 1;
+    //     char * data = value.data;
+    //     TextManager text;
+    //     int offset = 0;
+    //     text.WriteText(&offset, data, value_length);
+    //     *(int*)value.data = offset;
+    //     // TODO 
+    // }
+
 
     if (value.type != AttrType::NULLFIELD) {
       int8_t is_null = 0;
@@ -450,6 +467,8 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
       memset(record + field->offset(), 0, field->len() - 1);
       memcpy(record + field->offset() + field->len() - 1, &is_null, 1);
     }
+
+
   }
 
   record_out = record;
