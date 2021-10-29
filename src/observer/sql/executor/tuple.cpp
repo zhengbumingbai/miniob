@@ -515,6 +515,10 @@ AggregationRecordConverter::AggregationRecordConverter(Table *table, TupleSet &t
       }
 }
 
+void read_tuple(Tuple& tuple) {
+  
+}
+
 void AggregationRecordConverter::read_record(const char *record) {
   
   const TupleSchema &schema = tuple_set_.schema();

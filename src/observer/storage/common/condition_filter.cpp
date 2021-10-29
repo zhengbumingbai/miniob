@@ -37,10 +37,16 @@ DefaultConditionFilter::DefaultConditionFilter() {
 DefaultConditionFilter::~DefaultConditionFilter() {}
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right,
-                                AttrType attr_type, CompOp comp_op) {
-  if (attr_type < CHARS || attr_type > TEXTS) {
-    LOG_ERROR("Invalid condition with unsupported attribute type: %d",
-              attr_type);
+                                AttrType left_attr_type, AttrType right_attr_type, CompOp comp_op) {
+  if (left_attr_type < CHARS || left_attr_type > TEXTS) {
+    LOG_ERROR("Invalid condition with unsupported left attribute type: %d",
+              left_attr_type);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  if (right_attr_type < CHARS || right_attr_type > TEXTS) {
+    LOG_ERROR("Invalid condition with unsupported right attribute type: %d",
+              right_attr_type);
     return RC::INVALID_ARGUMENT;
   }
 
@@ -52,7 +58,8 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right,
 
   left_ = left;
   right_ = right;
-  attr_type_ = attr_type;
+  left_attr_type_ = left_attr_type;
+  right_attr_type_ = right_attr_type;
   comp_op_ = comp_op;
   return RC::SUCCESS;
 }
@@ -136,12 +143,14 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition) {
   // 但是选手们还是要实现。这个功能在预选赛中会出现
   if (type_left != type_right) {
     if (type_left != NULLFIELD && type_right != NULLFIELD) {
-      LOG_DEBUG("Type left not the same as type right");
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      if (!((type_left == AttrType::INTS && type_right == AttrType::FLOATS) || (type_left == AttrType::FLOATS && type_right == AttrType::INTS))) {
+        LOG_DEBUG("Type left not the same as type right");
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
     }
   }
 
-  return init(left, right, type_left, condition.comp);
+  return init(left, right, type_left, type_right, condition.comp);
 }
 
 bool DefaultConditionFilter::filter(const Record &rec) const {
@@ -171,7 +180,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
   }
 
   double cmp_result = 0;
-  switch (attr_type_) {
+  switch (left_attr_type_) {
     case CHARS: {  // 字符串都是定长的，直接比较
       // 按照C字符串风格来定
       if (nullptr == left_value || nullptr == right_value ) {
@@ -187,16 +196,26 @@ bool DefaultConditionFilter::filter(const Record &rec) const {
       if (nullptr == left_value || nullptr == right_value ) {
         break;
       }
-      int left = *(int *)left_value;
-      int right = *(int *)right_value;
+      double left = *(int *)left_value;
+      double right;
+      if (right_attr_type_ == AttrType::INTS) {
+        right = *(int *)right_value;
+      } else {
+        right = *(float *)right_value;
+      }
       cmp_result = left - right;
     } break;
     case FLOATS: {
       if (nullptr == left_value || nullptr == right_value ) {
         break;
       }
-      float left = *(float *)left_value;
-      float right = *(float *)right_value;
+      double left = *(float *)left_value;
+      double right;
+      if (right_attr_type_ == AttrType::FLOATS) {
+        right = *(float *)right_value;
+      } else {
+        right = *(int *)right_value;
+      }
       cmp_result = left - right;
     } break;
       break;
