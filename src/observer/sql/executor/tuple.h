@@ -218,6 +218,7 @@ public:
     // }
     aggr_results_.resize(0);
   }
+  void read_tuple(Tuple& tuple);
   void read_record(const char *record);
 
   RC final_add_record();
