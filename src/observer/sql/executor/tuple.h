@@ -212,13 +212,15 @@ class AggregationRecordConverter {
 public:
   AggregationRecordConverter(Table *table, TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
 
+  AggregationRecordConverter(TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
+
   ~AggregationRecordConverter(){
     // for (TupleValue* aggr_result : aggr_results_) {
     //   delete aggr_result;
     // }
     aggr_results_.resize(0);
   }
-  void read_tuple(Tuple& tuple);
+  void read_tuple(const Tuple& tuple);
   void read_record(const char *record);
 
   RC final_add_record();

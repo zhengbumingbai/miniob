@@ -32,7 +32,7 @@ public:
 
     virtual void to_string(std::ostream &os) const = 0;
     virtual int compare(const TupleValue &other) const = 0;
-    virtual int type() const = 0;
+    virtual ValueType type() const = 0;
 private:
 };
 
@@ -59,7 +59,7 @@ public:
         return value_ - int_other.value_;
     }
 
-    int type() const override
+    ValueType type() const override
     {
         return ValueType::DATE;
     }
@@ -69,7 +69,7 @@ public:
         return value_ > other;
     }
 
-    int value() {
+    int value() const{
         return value_;
     }
 
@@ -99,7 +99,7 @@ public:
         return value_ - int_other.value_;
     }
 
-    int type() const override
+    ValueType type() const override
     {
         return ValueType::INT;
     }
@@ -113,7 +113,7 @@ public:
         value_ += b;
     }
 
-    int value() {
+    int value() const{
         return value_;
     }
 
@@ -170,7 +170,7 @@ public:
         return 0;
     }
 
-    int type() const override
+    ValueType type() const override
     {
         return ValueType::FLOAT;
     }
@@ -184,7 +184,7 @@ public:
         value_ += b;
     }
 
-    float value() {
+    float value() const{
         return value_;
     }
 
@@ -216,12 +216,12 @@ public:
         return strcmp(value_.c_str(), string_other.value_.c_str());
     }
 
-    int type() const override
+    ValueType type() const override
     {
         return ValueType::STRING;
     }
 
-    std::string value() {
+    std::string value() const{
         return value_;
     }
 
@@ -249,7 +249,7 @@ public:
         return false;
     }
 
-    int type() const override
+    ValueType type() const override
     {
         return ValueType::NULLTYPE;
     }
@@ -276,7 +276,7 @@ public:
         return strcmp(value_.c_str(), string_other.value_.c_str());
     }
 
-    int type() const override
+    ValueType type() const override
     {
         return ValueType::STRING;
     }
