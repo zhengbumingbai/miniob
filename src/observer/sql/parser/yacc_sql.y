@@ -71,6 +71,7 @@ ParserContext *get_context(yyscan_t scanner)
         INDEX
         SELECT
         DESC
+        ASC
         SHOW
         SYNC
         INSERT
@@ -115,7 +116,9 @@ ParserContext *get_context(yyscan_t scanner)
 		NULLTOKEN
 		NULLABLE
 		ISTOKEN
-        TEXT
+        ORDER
+        GROUP
+        BY
 
 %union {
   struct _Attr *attr;
@@ -142,6 +145,7 @@ ParserContext *get_context(yyscan_t scanner)
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
+%type <number> order_type
 
 %%
 
@@ -401,7 +405,7 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where SEMICOLON
+    SELECT select_attr FROM ID rel_list where order SEMICOLON 
 		{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
@@ -418,6 +422,46 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->value_length = 0;
 	}
 	;
+
+order:
+    /* empty */ 
+    | ORDER BY ID order_type order_list {	
+            OrderAttr order_attr;
+            order_attr_init(&order_attr, $4, NULL, $3);
+            selects_append_order_attribute(&CONTEXT->ssql->sstr.selection, &order_attr);
+        }
+    | ORDER BY ID DOT ID order_type order_list {	
+            OrderAttr order_attr;
+            order_attr_init(&order_attr, $6, $3, $5);
+            selects_append_order_attribute(&CONTEXT->ssql->sstr.selection, &order_attr);
+        }        
+    ;
+
+order_list:
+    /* empty */
+    | COMMA ID order_type order_list {
+            OrderAttr order_attr;
+            order_attr_init(&order_attr, $3, NULL, $2);
+            selects_append_order_attribute(&CONTEXT->ssql->sstr.selection, &order_attr);
+      }
+    | COMMA ID DOT ID order_type order_list {
+            OrderAttr order_attr;
+            order_attr_init(&order_attr, $5, $2, $4);
+            selects_append_order_attribute(&CONTEXT->ssql->sstr.selection, &order_attr);
+      }
+  	;
+
+order_type:
+    /* empty */ {
+        $$ = ASC_T; // 默认升序
+    }
+    | ASC {
+        $$ = ASC_T; //上一行的ASC表示token 这一行的ASC表示的是enum里的类型
+    }
+    | DESC {
+        $$ = DESC_T; // 
+    }
+    ;
 
 select_attr:
     STAR {  

@@ -27,6 +27,9 @@ See the Mulan PSL v2 for more details. */
 //聚合类型
 typedef enum { AGGR_UNDEFINED, COUNT, AVG, MAX, MIN } AggrType;
 
+//排序类型
+typedef enum { ASC_T, DESC_T } OrderType;
+
 //属性值类型
 typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, NULLFIELD, TEXTS } AttrType;
 
@@ -49,6 +52,13 @@ typedef struct {
   int is_constant;       // 如果聚合括号内是常数
   AggrType aggr_type;    // 聚合类型
 } AggrAttr;
+
+
+typedef struct {
+  char *relation_name;   // relation name (may be NULL) 表名
+  char *attribute_name;  // attribute name              属性名
+  OrderType order_type; // ASC OR DESC 
+} OrderAttr;
 
 typedef enum {
   EQUAL_TO,     //"="     0
@@ -84,6 +94,8 @@ typedef struct {
   Condition conditions[MAX_NUM];    // conditions in Where clause
   AggrAttr  aggr_attr[MAX_NUM];     // attrs of aggregation
   size_t    aggr_num;               // Length of aggregation
+  size_t    order_num;              // Length of order
+  OrderAttr order_attr[MAX_NUM];    // attrs of order
 } Selects;
 
 // 新增recore类型
@@ -209,6 +221,9 @@ void aggr_attr_destory(AggrAttr *aggr_attr);
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
 
+void order_attr_init(OrderAttr *order_attr, OrderType order_type,const char *relation_name,const char* attribute_name);
+void order_attr_destory(OrderAttr *order_attr);
+
 // 增加时间转化函数
 int str_to_time(const char *time_str);
 
@@ -241,6 +256,7 @@ void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 void selects_append_aggr_attribute(Selects *selects, AggrAttr *aggr_attr);
+void selects_append_order_attribute(Selects *selects, OrderAttr *order_attr);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record records[], size_t record_num);

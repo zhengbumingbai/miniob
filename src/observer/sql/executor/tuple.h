@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <memory>
 #include <vector>
-
+#include <algorithm>
 #include "sql/parser/parse.h"
 #include "sql/executor/value.h"
 
@@ -159,6 +159,7 @@ public:
   }
 
   void print(std::ostream &os,bool is_single_table) const;
+
 public:
   static void from_table(const Table *table, TupleSchema &schema);
 private:
@@ -189,6 +190,7 @@ public:
   const Tuple &get(int index) const;
   const std::vector<Tuple> &tuples() const;
   void print(std::ostream &os, bool is_single_table) const;
+  void sort(bool is_single_table,const OrderAttr *order_attr,const int order_num) ;
 public:
   const TupleSchema &schema() const {
     return schema_;

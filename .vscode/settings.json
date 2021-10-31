@@ -63,5 +63,5 @@
         "cfloat": "cpp",
         "forward_list": "cpp"
     },
-    "C_Cpp.errorSquiggles": "Enabled"
+    "C_Cpp.errorSquiggles": "Disabled"
 }

@@ -264,6 +264,59 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     Session *session = session_event->get_client()->session;
     Trx *trx = session->current_trx();
     const Selects &selects = sql->sstr.selection;
+    // 对order进行元信息校验
+    for (int i = 0; i < selects.order_num; i++)
+    {
+        char *relation_name = selects.order_attr[i].relation_name;
+        char *attribute_name = selects.order_attr[i].attribute_name;
+        if(relation_name != nullptr){
+            Table *table = DefaultHandler::get_default().find_table(db, relation_name);
+            if (nullptr == table)
+            {
+                LOG_WARN("No such table [%s] in db [%s]", relation_name, db);
+                return RC::SCHEMA_TABLE_NOT_EXIST;
+            }
+            // 判断该表名是否在搜索的表中
+            bool isExistInSelectTable = false;
+            for (int i = 0; i < selects.relation_num; i++)
+            {
+                if(strcmp(selects.relations[i],relation_name) ==0 ) {
+                    isExistInSelectTable = true;
+                    break;
+                }
+            }
+            // 如果要排序的表的字段 该表不在select的relation中的话 return false
+            if(!isExistInSelectTable) {
+                return RC::GENERIC_ERROR;
+            }
+
+            // 如果存在则判断该表有没有这个attribute
+            const FieldMeta *field  = table->table_meta().field(attribute_name);
+            if(field == nullptr) {
+                return RC::SCHEMA_FIELD_NOT_EXIST;
+            }
+        } else {
+            // 如果没有指定表名 且不是单表 就返回出错
+            if (selects.relation_num != 1) {
+                return RC::GENERIC_ERROR;
+            }
+            // 如果是单表 则判断先检查该表是否存在
+            relation_name =  selects.relations[0];
+            Table *table = DefaultHandler::get_default().find_table(db, relation_name);
+            if (nullptr == table)
+            {
+                LOG_WARN("No such table [%s] in db [%s]", relation_name, db);
+                return RC::SCHEMA_TABLE_NOT_EXIST;
+            }
+
+            // 如果存在则判断该表有没有这个attribute
+            const FieldMeta *field  = table->table_meta().field(attribute_name);
+            if(field == nullptr) {
+                return RC::SCHEMA_FIELD_NOT_EXIST;
+            }
+        }
+    }
+    
 
     // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
     std::vector<ExecutionNode *> select_nodes;
@@ -374,6 +427,8 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
             tuple_sets[0].print(ss, is_single_table);
         } else {
             select_columns(tuple_sets[0], selects, table_selected, is_single_table);
+            // 先排序
+            table_selected.sort(is_single_table, selects.order_attr, selects.order_num);
             table_selected.print(ss, is_single_table);
         }
 
