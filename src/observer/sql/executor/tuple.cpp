@@ -732,9 +732,14 @@ RC AggregationRecordConverter::final_add_record() {
     const Value* constant_value = aggr_field.constant_value();
     if (constant_value == nullptr && aggr_field.aggr_type() == AggrType::AVG) {
       FloatValue* value_tuple = dynamic_cast<FloatValue*>(aggr_results_[i]);
-      tuple.add(value_tuple->value() / line_counts_[i]);
+      if (line_counts_[i] == 0){
+        tuple.add(new NullValue());
+        delete value_tuple;
+      } else {
+        tuple.add(value_tuple->value() / line_counts_[i]);
+      }
       break;
-    }
+    } 
     tuple.add(aggr_results_[i]);
     // const AggrField &aggr_field = aggr_fields[i];
     // const Value* constant_value = aggr_field.constant_value();
