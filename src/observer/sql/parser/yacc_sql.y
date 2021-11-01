@@ -628,8 +628,8 @@ rel_list:
     ;
 inner_join:
 	/* empty */
-	| INNER JOIN rel_list on more_inner_join {
-
+	| INNER JOIN ID rel_list on inner_join {
+			selects_append_relation(&CONTEXT->ssql->sstr.selection, $3);
 		}
 	;
 on:
@@ -638,12 +638,7 @@ on:
 
 		}
 	;
-more_inner_join:
-	/* empty */
-	| AND rel_list inner_join {
 
-		}
-	;
 
 where:
     /* empty */ 
