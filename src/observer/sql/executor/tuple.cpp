@@ -476,7 +476,7 @@ void TupleRecordConverter::add_record(const char *record) {
           TextManager text;
           int str_len = 0;
           text.GetLen(value, &str_len);
-          char *data = (char *)calloc(1, str_len);
+          char *data = (char *)calloc(1, str_len + 1);
           text.ReadText(value, data, str_len);
           LOG_DEBUG("输出TEXT OFFSET: %d, LENGTH:%d TEXT: %s", value, str_len,
                     data);

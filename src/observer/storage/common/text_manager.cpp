@@ -27,6 +27,8 @@ RC TextManager::WriteText(int *offset, char *data, int length) {
   //   返回该TEXT的偏移
   *offset = offset_;
   // 写入数据到偏移处
+//   length 不超过 4096
+  length = length > TEXT_MAX_LENGTH ? TEXT_MAX_LENGTH : length;
   ret = lseek(fd_, offset_ * TEXT_MAX_LENGTH, SEEK_SET);
   if (ret == -1) {
     perror("TextManager()");
@@ -67,6 +69,7 @@ RC TextManager::ReadText(int offset, char *data, int length) {
     perror("TextManager()");
     return RC::GENERIC_ERROR;
   }
+  data[length] = '\0';
   return RC::SUCCESS;
 }
 
