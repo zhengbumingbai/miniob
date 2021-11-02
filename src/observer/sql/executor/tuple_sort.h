@@ -13,7 +13,7 @@ class tuple_sort {
   ~tuple_sort();
 
   bool operator()(const Tuple &tuple1, const Tuple &tuple2) {
-    for (int i = 0; i < order_num; i++) {
+    for (int i = order_num - 1; i >= 0; i--) {
       int index = indexs[i];
       int order_type = order_attr[i].order_type;
       if (order_type == ASC_T) {
