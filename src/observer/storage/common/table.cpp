@@ -449,9 +449,10 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out) {
     if(field->type() == TEXTS) {
         // 为了将\0也写入页中所以加上
         char * data = (char *)value.data;
-        int value_length = strlen(data) + 1;
+        int value_length = strlen(data);
         TextManager text;
         int offset = 0;
+        // zt 只写字符 不写\0
         text.WriteText(&offset, data, value_length);
         LOG_DEBUG("写入TEXT LENGTH:%d OFFSET:%d TEXT: %s",value_length, offset, data);
         *(int*)value.data = offset;
@@ -537,7 +538,7 @@ RC Table::make_updated_record(const char *record_in, const char *attribute_name,
     if(value->type==CHARS && field->type()==TEXTS){
         TextManager text;
         int offset_in_file = 0;
-        text.WriteText(&offset_in_file,(char *)value->data,strlen((char *)value->data) + 1);
+        text.WriteText(&offset_in_file,(char *)value->data,strlen((char *)value->data));
         text.CloseFile();
         *(int *)(value->data)  = offset_in_file;
     }

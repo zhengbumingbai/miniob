@@ -49,6 +49,28 @@ void aggr_attr_destory(AggrAttr *aggr_attr) {
   aggr_attr->attribute_name = nullptr;
 }
 
+void order_attr_init(OrderAttr *order_attr,OrderType order_type,const char *relation_name,const char* attribute_name){
+    order_attr->order_type = order_type;
+    if(relation_name != nullptr) {
+        order_attr->relation_name = strdup(relation_name);
+    }else {
+        order_attr->relation_name = nullptr;
+    }
+    
+    if(attribute_name!=nullptr) {
+        order_attr->attribute_name = strdup(attribute_name);
+    }else {
+        order_attr->attribute_name = nullptr;
+    }
+}
+
+void order_attr_destory(OrderAttr *order_attr){
+    free(order_attr->relation_name);
+    free(order_attr->attribute_name);
+    order_attr->relation_name = nullptr;
+    order_attr->attribute_name = nullptr;
+}
+
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name,
                         const char *attribute_name) {
   if (relation_name != nullptr) {
@@ -269,6 +291,11 @@ void selects_append_aggr_attribute(Selects *selects, AggrAttr *aggr_attr) {
   selects->aggr_attr[selects->aggr_num++] = *aggr_attr;
 }
 
+void selects_append_order_attribute(Selects *selects, OrderAttr *order_attr) {
+  selects->order_attr[selects->order_num++] = *order_attr;
+}
+
+
 void selects_append_relation(Selects *selects, const char *relation_name) {
   selects->relations[selects->relation_num++] = strdup(relation_name);
 }
@@ -299,10 +326,18 @@ void selects_destroy(Selects *selects) {
     aggr_attr_destory(&selects->aggr_attr[i]);
   }
 
+  selects->aggr_num = 0;
+
   for (size_t i = 0; i < selects->condition_num; i++) {
     condition_destroy(&selects->conditions[i]);
   }
   selects->condition_num = 0;
+  
+  for (size_t i = 0; i < selects->order_num; i++)
+  {
+      order_attr_destory(&selects->order_attr[i]);
+  }
+  selects->order_num = 0;
 }
 
 // 修改record存储
