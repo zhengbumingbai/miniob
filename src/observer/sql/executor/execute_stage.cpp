@@ -533,7 +533,7 @@ RC aggr_execution(const Selects &selects, const char *db, TupleSet& tupleset_in,
     TupleSchema schema;
     std::vector<const AggrAttr *> attrs;
     if (selects.aggr_num > 0) {
-        for (int i = selects.aggr_num - 1; i >= 0; i--) {
+        for (int i = 0; i < selects.aggr_num; i++) {
             // 反向遍历以与输入顺序对齐
             const AggrAttr &attr = selects.aggr_attr[i];
             Table *table;

@@ -60,6 +60,11 @@ typedef struct {
   OrderType order_type; // ASC OR DESC 
 } OrderAttr;
 
+typedef struct {
+  char *relation_name;   // relation name (may be NULL) 表名
+  char *attribute_name;  // attribute name              属性名
+} GroupAttr;
+
 typedef enum {
   EQUAL_TO,     //"="     0
   LESS_EQUAL,   //"<="    1
@@ -96,6 +101,8 @@ typedef struct {
   size_t    aggr_num;               // Length of aggregation
   size_t    order_num;              // Length of order
   OrderAttr order_attr[MAX_NUM];    // attrs of order
+  size_t    group_num;               // Length of aggregation
+  GroupAttr group_attr[MAX_NUM];     // attrs of aggregation
 } Selects;
 
 // 新增recore类型
@@ -224,6 +231,8 @@ void relation_attr_destroy(RelAttr *relation_attr);
 void order_attr_init(OrderAttr *order_attr, OrderType order_type,const char *relation_name,const char* attribute_name);
 void order_attr_destory(OrderAttr *order_attr);
 
+void group_attr_init(GroupAttr *group_attr, const char *relation_name,const char* attribute_name);
+void group_attr_destroy(GroupAttr *group_attr);
 // 增加时间转化函数
 int str_to_time(const char *time_str);
 
@@ -257,6 +266,7 @@ void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 void selects_append_aggr_attribute(Selects *selects, AggrAttr *aggr_attr);
 void selects_append_order_attribute(Selects *selects, OrderAttr *order_attr);
+void selects_append_group_attribute(Selects *selects, GroupAttr *group_attr);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Insert_Record records[], size_t record_num);

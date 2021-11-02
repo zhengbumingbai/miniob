@@ -149,6 +149,7 @@ ParserContext *get_context(yyscan_t scanner)
 %type <value1> value;
 %type <number> number;
 %type <number> order_type
+%type <number> aggr_op
 
 %%
 
@@ -408,7 +409,7 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list inner_join where order SEMICOLON
+    SELECT select_attr FROM ID rel_list inner_join where group order SEMICOLON
 		{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
@@ -424,7 +425,6 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->select_length=0;
 			CONTEXT->value_length = 0;
 	}
-	;
 
 order:
     /* empty */ 
@@ -439,6 +439,32 @@ order:
             selects_append_order_attribute(&CONTEXT->ssql->sstr.selection, &order_attr);
         }        
     ;
+group:
+	/* empty */ 
+    | GROUP BY ID group_id_list {	
+		GroupAttr group_attr;
+		group_attr_init(&group_attr, NULL, $3);
+		selects_append_group_attribute(&CONTEXT->ssql->sstr.selection, &group_attr);
+	}
+    | GROUP BY ID DOT ID group_id_list {	
+		GroupAttr group_attr;
+		group_attr_init(&group_attr, $3, $5);
+		selects_append_group_attribute(&CONTEXT->ssql->sstr.selection, &group_attr);
+	}        
+    ;
+
+group_id_list:
+	/* empty */
+	| COMMA ID group_id_list {
+		GroupAttr group_attr;
+		group_attr_init(&group_attr, NULL, $2);
+		selects_append_group_attribute(&CONTEXT->ssql->sstr.selection, &group_attr);
+	}
+	| COMMA ID DOT ID group_id_list {
+		GroupAttr group_attr;
+		group_attr_init(&group_attr, $2, $4);
+		selects_append_group_attribute(&CONTEXT->ssql->sstr.selection, &group_attr);
+	}
 
 order_list:
     /* empty */
@@ -482,170 +508,80 @@ select_attr:
 			relation_attr_init(&attr, $1, $3);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
-	| aggr_list {
+	| ID aggr_list {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $1);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+  	| ID DOT ID aggr_list {
+			RelAttr attr;
+			relation_attr_init(&attr, $1, $3);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+	| aggr attr_list {
+
+	}
+	| aggr aggr_list {
 
 	}
     ;
 
 aggr_list:
-	/* empty */
-	| COMMA aggr_list {
+	COMMA aggr aggr_list
+	| COMMA aggr attr_list
+    ;
 
-	}
-	| AGGR_COUNT LBRACE STAR RBRACE aggr_list {
+
+aggr:
+	aggr_op LBRACE STAR RBRACE {
 			AggrAttr attr;
 			/*第二个参数refer to AggrType */
-			aggr_attr_init(&attr, 1, NULL, "*");
+			aggr_attr_init(&attr, $1, NULL, "*");
 			attr.is_constant = 0;
 			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
-	| AGGR_COUNT LBRACE ID RBRACE aggr_list {
+	| aggr_op LBRACE ID RBRACE {
 			AggrAttr attr;
-			aggr_attr_init(&attr, 1, NULL, $3);
+			aggr_attr_init(&attr, $1, NULL, $3);
 			attr.is_constant = 0;
 			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
-	| AGGR_COUNT LBRACE ID DOT ID RBRACE aggr_list {
+	| aggr_op LBRACE ID DOT ID RBRACE {
 			AggrAttr attr;
-			aggr_attr_init(&attr, 1, $3, $5);
+			aggr_attr_init(&attr, $1, $3, $5);
 			attr.is_constant = 0;
 			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
-	| AGGR_MAX LBRACE STAR RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 3, NULL, "*");
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MAX LBRACE ID RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 3, NULL, $3);
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MAX LBRACE ID DOT ID RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 3, $3, $5);
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MIN LBRACE STAR RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 4, NULL, "*");
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MIN LBRACE ID RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 4, NULL, $3);
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MIN LBRACE ID DOT ID RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 4, $3, $5);
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_AVG LBRACE STAR RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 2, NULL, "*");
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_AVG LBRACE ID RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 2, NULL, $3);
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_AVG LBRACE ID DOT ID RBRACE aggr_list {
-			AggrAttr attr;
-			aggr_attr_init(&attr, 2, $3, $5);
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_COUNT LBRACE NUMBER RBRACE aggr_list {
+	| aggr_op LBRACE NUMBER RBRACE {
 		AggrAttr attr;
-		aggr_attr_init(&attr, 1, NULL, NULL);
+		aggr_attr_init(&attr, $1, NULL, NULL);
 		value_init_integer(&attr.constant_value, $3);
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
-	| AGGR_COUNT LBRACE FLOAT RBRACE aggr_list {
+	| aggr_op LBRACE FLOAT RBRACE {
 		AggrAttr attr;
-		aggr_attr_init(&attr, 1, NULL, NULL);
+		aggr_attr_init(&attr, $1, NULL, NULL);
 		value_init_float(&attr.constant_value, $3);
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
-	| AGGR_COUNT LBRACE SSS RBRACE aggr_list {
+	| aggr_op LBRACE SSS RBRACE {
 		AggrAttr attr;
-		aggr_attr_init(&attr, 1, NULL, NULL);
+		aggr_attr_init(&attr, $1, NULL, NULL);
 		$3 = substr($3,1,strlen($3)-2);
 		value_init_string(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MAX LBRACE NUMBER RBRACE aggr_list {
-		AggrAttr attr;
-		aggr_attr_init(&attr, 3, NULL, NULL);
-		value_init_integer(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	} 
-	| AGGR_MAX LBRACE FLOAT RBRACE aggr_list {
-		AggrAttr attr;
-		aggr_attr_init(&attr, 3, NULL, NULL);
-		value_init_float(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MAX LBRACE SSS RBRACE aggr_list {
-		AggrAttr attr;
-		aggr_attr_init(&attr, 3, NULL, NULL);
-		$3 = substr($3,1,strlen($3)-2);
-		value_init_string(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MIN LBRACE NUMBER RBRACE aggr_list {
-		AggrAttr attr;
-		aggr_attr_init(&attr, 4, NULL, NULL);
-		value_init_integer(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	} 
-	| AGGR_MIN LBRACE FLOAT RBRACE aggr_list {
-		AggrAttr attr;
-		aggr_attr_init(&attr, 4, NULL, NULL);
-		value_init_float(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_MIN LBRACE SSS RBRACE aggr_list {
-		AggrAttr attr;
-		aggr_attr_init(&attr, 4, NULL, NULL);
-		$3 = substr($3,1,strlen($3)-2);
-		value_init_string(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| AGGR_AVG LBRACE NUMBER RBRACE aggr_list {
-		AggrAttr attr;
-		aggr_attr_init(&attr, 2, NULL, NULL);
-		value_init_integer(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	} 
-	| AGGR_AVG LBRACE FLOAT RBRACE aggr_list {
-		AggrAttr attr;
-		aggr_attr_init(&attr, 2, NULL, NULL);
-		value_init_float(&attr.constant_value, $3);
 		attr.is_constant = 1;
 		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
     ;
+
+aggr_op:
+	AGGR_COUNT { $$=1; }
+	| AGGR_AVG  { $$=2; }
+	| AGGR_MAX { $$=3; }
+	| AGGR_MIN { $$=4; }
+	;
 
 attr_list:
     /* empty */
@@ -657,6 +593,20 @@ attr_list:
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].attribute_name=$2;
       }
     | COMMA ID DOT ID attr_list {
+			RelAttr attr;
+			relation_attr_init(&attr, $2, $4);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
+        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
+  	  }
+    | COMMA ID aggr_list {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $2);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+     	  // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].relation_name = NULL;
+        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].attribute_name=$2;
+      }
+    | COMMA ID DOT ID aggr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, $2, $4);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
