@@ -37,6 +37,7 @@ using namespace common;
 
 RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node);
 RC create_selection_aggregation_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectAggregationExeNode &select_node);
+RC aggr_execution(const Selects &selects, const char *db, TupleSet& tupleset_in, TupleSet& tupleset_out);
 
 //! Constructor
 ExecuteStage::ExecuteStage(const char *tag) : Stage(tag) {}
@@ -271,15 +272,18 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     {
         const char *table_name = selects.relations[i];
         ExecutionNode* select_node;
-        if (selects.aggr_num > 0) {
-            select_node = new SelectAggregationExeNode;
-            SelectAggregationExeNode* select_node_in = dynamic_cast<SelectAggregationExeNode*>(select_node);
-            rc = create_selection_aggregation_executor(trx, selects, db, table_name, *select_node_in);
-        } else {
-            select_node = new SelectExeNode;
-            SelectExeNode* select_node_in = dynamic_cast<SelectExeNode*>(select_node);
-            rc = create_selection_executor(trx, selects, db, table_name, *select_node_in);
-        }
+        // if (false) {
+        //     select_node = new SelectAggregationExeNode;
+        //     SelectAggregationExeNode* select_node_in = dynamic_cast<SelectAggregationExeNode*>(select_node);
+        //     rc = create_selection_aggregation_executor(trx, selects, db, table_name, *select_node_in);
+        // } else {
+        //     select_node = new SelectExeNode;
+        //     SelectExeNode* select_node_in = dynamic_cast<SelectExeNode*>(select_node);
+        //     rc = create_selection_executor(trx, selects, db, table_name, *select_node_in);
+        // }
+        select_node = new SelectExeNode;
+        SelectExeNode* select_node_in = dynamic_cast<SelectExeNode*>(select_node);
+        rc = create_selection_executor(trx, selects, db, table_name, *select_node_in);
         if (rc != RC::SUCCESS)
         {
             delete select_node;
@@ -358,12 +362,14 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
             //select需要的列
             TupleSet joined_table_selected;
-            select_columns(joined_table, selects, joined_table_selected,is_single_table);
-
-            joined_table_selected.print(ss, is_single_table);
+            if (selects.aggr_num > 0) {
+                aggr_execution(selects, db, joined_table, joined_table_selected);
+                joined_table_selected.print(ss, is_single_table);
+            } else {
+                select_columns(joined_table, selects, joined_table_selected,is_single_table);
+                joined_table_selected.print(ss, is_single_table);
+            }
         }
-
-
     }
     else
     {
@@ -371,7 +377,8 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         // 当前只查询一张表，直接返回结果即可
         TupleSet table_selected;
         if (selects.aggr_num > 0) {
-            tuple_sets[0].print(ss, is_single_table);
+            aggr_execution(selects, db, tuple_sets[0], table_selected);
+            table_selected.print(ss, is_single_table);
         } else {
             select_columns(tuple_sets[0], selects, table_selected, is_single_table);
             table_selected.print(ss, is_single_table);
@@ -414,12 +421,12 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
 static RC schema_add_aggr_field(const AggrAttr* aggr, Table *table, const char *field_name, TupleSchema &schema)
 {   
     if (aggr->is_constant) {
-        schema.add_aggr(aggr->aggr_type, AttrType::UNDEFINED, table->name(), field_name, &aggr->constant_value);
+        schema.add_aggr(aggr->aggr_type, AttrType::UNDEFINED, table->name(), table, field_name, &aggr->constant_value);
         return RC::SUCCESS;
     }
     if (0 == strcmp("*", field_name)) {
         if (aggr->aggr_type == AggrType::COUNT) {
-            schema.add_aggr(aggr->aggr_type, AttrType::INTS, table->name(), field_name, nullptr);
+            schema.add_aggr(aggr->aggr_type, AttrType::INTS, table->name(), table, field_name, nullptr);
             return RC::SUCCESS;
         } else {
             LOG_DEBUG("AVG MIN MAX not support * field");
@@ -434,14 +441,14 @@ static RC schema_add_aggr_field(const AggrAttr* aggr, Table *table, const char *
     }
     switch(aggr->aggr_type) {
         case AggrType::COUNT:
-            schema.add_aggr(aggr->aggr_type, AttrType::INTS, table->name(), field_meta->name(), nullptr);
+            schema.add_aggr(aggr->aggr_type, AttrType::INTS, table->name(), table, field_meta->name(), nullptr);
             break;
         case AggrType::AVG:
             if (field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS) {
                 LOG_WARN("Field type in aggregation not support aggregation op of avg. %s.%s", table->name(), field_meta->name());
                 return RC::SCHEMA_FIELD_TYPE_MISMATCH;
             }
-            schema.add_aggr(aggr->aggr_type, AttrType::FLOATS, table->name(), field_meta->name(), nullptr);
+            schema.add_aggr(aggr->aggr_type, AttrType::FLOATS, table->name(), table, field_meta->name(), nullptr);
             break;
         case AggrType::MAX:
         case AggrType::MIN:
@@ -450,7 +457,7 @@ static RC schema_add_aggr_field(const AggrAttr* aggr, Table *table, const char *
                 LOG_WARN("Field type in aggregation not support aggregation op of max, min. %s.%s", table->name(), field_meta->name());
                 return RC::SCHEMA_FIELD_TYPE_MISMATCH;
             }
-            schema.add_aggr(aggr->aggr_type, field_meta->type(), table->name(), field_meta->name(), nullptr);
+            schema.add_aggr(aggr->aggr_type, field_meta->type(), table->name(), table, field_meta->name(), nullptr);
             break;
         default:
             LOG_DEBUG("Not Support AGGR_UNDEGINED.");
@@ -468,7 +475,17 @@ RC aggr_execution(const Selects &selects, const char *db, TupleSet& tupleset_in,
         for (int i = selects.aggr_num - 1; i >= 0; i--) {
             // 反向遍历以与输入顺序对齐
             const AggrAttr &attr = selects.aggr_attr[i];
-            Table *table = DefaultHandler::get_default().find_table(db, attr.relation_name);
+            Table *table;
+            if (attr.relation_name == nullptr) {
+                if (selects.relation_num > 1) {
+                    LOG_WARN("Aggr must have table name in multi table, field [%s]", attr.attribute_name);
+                    return RC::SCHEMA_TABLE_NOT_EXIST; 
+                } else {
+                    table = DefaultHandler::get_default().find_table(db, selects.relations[0]);
+                }
+            } else {
+                table = DefaultHandler::get_default().find_table(db, attr.relation_name);
+            }
             if (nullptr == table)
             {
                 LOG_WARN("No such table [%s] in db [%s]", attr.relation_name, db);
@@ -482,11 +499,13 @@ RC aggr_execution(const Selects &selects, const char *db, TupleSet& tupleset_in,
                 return rc;
             }
         }
+        tupleset_out.set_schema(schema);
     }
-    AggregationRecordConverter converter(nullptr, tupleset_out, attrs);
+    AggregationRecordConverter converter(tupleset_out, attrs, &tupleset_in.schema());
     for (int i=0; i < tupleset_in.size(); i++) {
         converter.read_tuple(tupleset_in.get(i));
     }
+    rc = converter.final_add_record();
     return rc;
 }
 

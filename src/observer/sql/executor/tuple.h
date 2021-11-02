@@ -89,7 +89,7 @@ private:
 
 class AggrField {
 public:
-  AggrField(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name, const Value* constant_value) :
+  AggrField(AggrType aggr_type, AttrType type, const char *table_name, Table* table,  const char *field_name, const Value* constant_value) :
           aggr_type_(aggr_type), type_(type) {
     if (table_name != nullptr) {
       field_name_ = std::string(table_name);
@@ -97,6 +97,7 @@ public:
     if (field_name != nullptr) {
       field_name_ = std::string(field_name);
     }
+    table_ = table;
     constant_value_ = constant_value;
   }
 
@@ -106,6 +107,10 @@ public:
 
   AttrType  type() const{
     return type_;
+  }
+
+  Table* table() const {
+    return table_;
   }
 
   const char *table_name() const {
@@ -125,6 +130,7 @@ private:
   AggrType aggr_type_;
   std::string table_name_;
   std::string field_name_;
+  Table* table_;
   const Value* constant_value_;
 };
 
@@ -136,7 +142,7 @@ public:
   void add(AttrType type, const char *table_name, const char *field_name);
   void add_if_not_exists(AttrType type, const char *table_name, const char *field_name);
 
-  void add_aggr(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name, const Value* constant_value);
+  void add_aggr(AggrType aggr_type, AttrType type, const char *table_name, Table* table, const char *field_name, const Value* constant_value);
   void add_aggr_if_not_exists(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name);
   // void merge(const TupleSchema &other);
   void append(const TupleSchema &other);
@@ -211,9 +217,8 @@ private:
 class AggregationRecordConverter {
 public:
   AggregationRecordConverter(Table *table, TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
-
   AggregationRecordConverter(TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
-
+  AggregationRecordConverter(TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs, const TupleSchema* schema);
   ~AggregationRecordConverter(){
     // for (TupleValue* aggr_result : aggr_results_) {
     //   delete aggr_result;
@@ -230,6 +235,7 @@ private:
   std::vector<const AggrAttr *> &aggr_attrs_;
   std::vector<TupleValue*> aggr_results_;
   std::vector<int> line_counts_;
+  const TupleSchema* schema_;
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_TUPLE_H_
