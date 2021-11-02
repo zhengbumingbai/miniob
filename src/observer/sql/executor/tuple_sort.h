@@ -57,7 +57,7 @@ tuple_sort::tuple_sort(bool is_single_table, const OrderAttr *order_attr,
   //   反向构造比较顺序
   if (is_single_table) {
     // 单表只需要确认每个属性在Tuple的位置
-    for (int i = order_num - 1; i >= 0; i--) {
+    for (int i = 0; i < order_num; i++) {
       for (int j = 0; j < fields.size(); j++) {
         if (strcmp(order_attr[i].attribute_name, fields[j].field_name()) == 0) {
           indexs.push_back(j);
@@ -66,7 +66,7 @@ tuple_sort::tuple_sort(bool is_single_table, const OrderAttr *order_attr,
       }
     }
   } else {
-    for (int i = order_num - 1; i >= 0; i--) {
+    for (int i = 0; i < order_num; i++) {
       for (int j = 0; j < fields.size(); j++) {
         if (strcmp(order_attr[i].attribute_name, fields[j].field_name()) == 0 &&
             strcmp(order_attr[i].relation_name, fields[j].table_name()) == 0) {
