@@ -413,6 +413,9 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
             TupleSet joined_table_selected;
             select_columns(joined_table, selects, joined_table_selected,is_single_table);
 
+            if(selects.order_num > 0) {
+                joined_table_selected.sort(is_single_table, selects.order_attr, selects.order_num));
+            }
             joined_table_selected.print(ss, is_single_table);
         }
 
@@ -428,7 +431,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         } else {
             select_columns(tuple_sets[0], selects, table_selected, is_single_table);
             // 先排序
-            table_selected.sort(is_single_table, selects.order_attr, selects.order_num);
+            if(selects.order_num > 0) {
+                table_selected.sort(is_single_table, selects.order_attr, selects.order_num);
+            }
+
             table_selected.print(ss, is_single_table);
         }
 

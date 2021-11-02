@@ -17,17 +17,17 @@ class tuple_sort {
       int index = indexs[i];
       int order_type = order_attr[i].order_type;
       if (order_type == ASC_T) {
-        if (tuple1.get(i).compare(tuple2.get(i)) < 0) {
+        if (tuple1.get(index).compare(tuple2.get(index)) < 0) {
           return true;
-        } else if (tuple1.get(i).compare(tuple2.get(i)) == 0) {
+        } else if (tuple1.get(index).compare(tuple2.get(index)) == 0) {
           continue;
         } else {
           return false;
         }
       } else if (order_type == DESC_T) {
-        if (tuple1.get(i).compare(tuple2.get(i)) > 0) {
+        if (tuple1.get(index).compare(tuple2.get(index)) > 0) {
           return true;
-        } else if (tuple1.get(i).compare(tuple2.get(i)) == 0) {
+        } else if (tuple1.get(index).compare(tuple2.get(index)) == 0) {
           continue;
         } else {
           return false;

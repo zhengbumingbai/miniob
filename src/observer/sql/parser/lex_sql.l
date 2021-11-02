@@ -48,7 +48,7 @@ QUOTE            [\'\"]
 [Ee][Xx][Ii][Tt]						 RETURN_TOKEN(EXIT);
 [Hh][Ee][Ll][Pp]                    	 RETURN_TOKEN(HELP);
 [Dd][Ee][Ss][Cc]                         RETURN_TOKEN(DESC);
-[Aa][Ss][Cc]                             RETURN_TOKEN(ASC); //zt ASC
+[Aa][Ss][Cc]                             RETURN_TOKEN(ASC); //zt ASC关键字
 [Cc][Rr][Ee][Aa][Tt][Ee]                 RETURN_TOKEN(CREATE);
 [Dd][Rr][Oo][Pp]                    	 RETURN_TOKEN(DROP);
 [Tt][Aa][Bb][Ll][Ee]					 RETURN_TOKEN(TABLE);
