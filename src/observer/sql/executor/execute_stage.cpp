@@ -414,7 +414,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
             select_columns(joined_table, selects, joined_table_selected,is_single_table);
 
             if(selects.order_num > 0) {
-                joined_table_selected.sort(is_single_table, selects.order_attr, selects.order_num));
+                joined_table_selected.sort(is_single_table, selects.order_attr, selects.order_num);
             }
             joined_table_selected.print(ss, is_single_table);
         }
