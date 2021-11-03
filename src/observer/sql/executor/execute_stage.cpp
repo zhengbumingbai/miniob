@@ -647,15 +647,21 @@ RC aggr_execution(const Selects &selects, const char *db, TupleSet& tupleset_in,
                 LOG_WARN("No such table [%s] in db [%s]", attr.relation_name, db);
                 return RC::SCHEMA_TABLE_NOT_EXIST;
             }
-            const FieldMeta *field_meta = table->table_meta().field(attr.attribute_name);
-            if (nullptr == field_meta)
-            {
-                LOG_WARN("No such field in aggr. %s.%s", table->name(), attr.attribute_name);
-                return RC::SCHEMA_FIELD_MISSING;
+            if (strcmp("*", attr.attribute_name) != 0) {
+                const FieldMeta *field_meta = table->table_meta().field(attr.attribute_name);
+                if (nullptr == field_meta)
+                {
+                    LOG_WARN("No such field in aggr. %s.%s", table->name(), attr.attribute_name);
+                    return RC::SCHEMA_FIELD_MISSING;
+                }
+                attr_comp = attr.attribute_name;
+                attrs.push_back(&attr);
+                schema_add_aggr_field(&attr, table, attr.attribute_name, schema);
+            } else {
+                attr_comp = attr.attribute_name;
+                attrs.push_back(&attr);
+                schema_add_aggr_field(&attr, table, attr.attribute_name, schema);
             }
-            attr_comp = attr.attribute_name;
-            attrs.push_back(&attr);
-            schema_add_aggr_field(&attr, table, attr.attribute_name, schema);
         }
         tupleset_out.set_schema(schema);
     }
