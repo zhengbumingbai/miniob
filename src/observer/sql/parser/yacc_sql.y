@@ -122,6 +122,10 @@ ParserContext *get_context(yyscan_t scanner)
         TEXT
 		INNER
 		JOIN
+		ADD_OP
+		SUB_OP
+		// MUL_OP
+		DIV_OP
 
 %union {
   struct _Attr *attr;
@@ -465,6 +469,47 @@ order_type:
         $$ = DESC_T; // 
     }
     ;
+
+// 一个表达式的形式就是 a 或者 a +-*\ b,其中a也可以是一个表达式 所以是嵌套的
+expression:
+	LBRACE expression RBRACE {
+
+	}
+	| expression_value {
+
+	}
+	| expression express_operator expression
+	;
+
+expression_value:
+	ID DOT ID: {
+
+	}
+	| ID {
+
+	}
+	| NUMBER {
+
+	}
+	| FLOAT {
+
+	}
+	;
+
+express_operator:
+	ADD_OP {
+
+	}
+	| SUB_OP {
+
+	}
+	| MUL_OP {
+
+	}
+	| DIV_OP {
+
+	}
+	;
 
 select_attr:
     STAR {  

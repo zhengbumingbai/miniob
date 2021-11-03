@@ -25,7 +25,7 @@ extern double atof();
 %option bison-bridge
 %option reentrant
 
-// push test
+
 WHITE_SAPCE      [\ \t\b\f]
 DIGIT            [0-9]+
 
@@ -105,6 +105,11 @@ QUOTE            [\'\"]
 "<"                                      RETURN_TOKEN(LT);
 ">="                                     RETURN_TOKEN(GE);
 ">"                                      RETURN_TOKEN(GT);
+"+"										 RETURN_TOKEN(ADD_OP);
+"-"										 RETURN_TOKEN(SUB_OP);
+"\\"									 RETURN_TOKEN(DIV_OP);
+
+
 {QUOTE}[\40\42\47A-Za-z0-9_/\.\-]*{QUOTE}	     yylval->string=strdup(yytext); RETURN_TOKEN(SSS);
 
 .						                             printf("Unknown character [%c]\n",yytext[0]); return yytext[0];
