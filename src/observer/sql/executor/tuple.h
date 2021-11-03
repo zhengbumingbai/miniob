@@ -98,7 +98,7 @@ public:
   AggrField(AggrType aggr_type, AttrType type, const char *table_name, Table* table,  const char *field_name, const Value* constant_value) :
           aggr_type_(aggr_type), type_(type) {
     if (table_name != nullptr) {
-      field_name_ = std::string(table_name);
+      table_name_ = std::string(table_name);
     }
     if (field_name != nullptr) {
       field_name_ = std::string(field_name);

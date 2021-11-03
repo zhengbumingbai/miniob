@@ -238,7 +238,7 @@ void TupleSchema::print(std::ostream &os, bool is_single_table) const {
             break;
         }
       } else {
-        if (table_names.size() > 1) {
+        if (!is_single_table) {
           aggr_name = iter->table_name() + std::string(".");
         }
         aggr_name += std::string(iter->field_name());
@@ -269,9 +269,9 @@ void TupleSchema::print(std::ostream &os, bool is_single_table) const {
       }
       os << aggr_all_field_name << std::string(" | ");
     }
-    if (table_names.size() > 1) {
-      os << fields_.back().table_name() << ".";
-    }
+    // if (!is_single_table) {
+    //   os << fields_.back().table_name() << ".";
+    // }
     std::string aggr_all_field_name;
     std::string aggr_name;
     if (aggr_fields_.back().constant_value() != nullptr) {
@@ -310,7 +310,7 @@ void TupleSchema::print(std::ostream &os, bool is_single_table) const {
           break;
       }
     } else {
-      if (table_names.size() > 1) {
+      if (!is_single_table) {
         aggr_name = aggr_fields_.back().table_name() + std::string(".");
       }
       aggr_name += std::string(aggr_fields_.back().field_name(),
