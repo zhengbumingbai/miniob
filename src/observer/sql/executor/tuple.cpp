@@ -20,8 +20,9 @@ See the Mulan PSL v2 for more details. */
 #include "tuple_sort.h"
 
 Tuple::Tuple(const Tuple &other) {
-  LOG_PANIC("Copy constructor of tuple is not supported");
-  exit(1);
+  // LOG_PANIC("Copy constructor of tuple is not supported");
+  // exit(1);
+  values_ = other.values_;
 }
 
 Tuple::Tuple(Tuple &&other) noexcept : values_(std::move(other.values_)) {}
@@ -40,9 +41,11 @@ Tuple::~Tuple() {}
 
 // add (Value && value)
 void Tuple::add(TupleValue *value) { values_.emplace_back(value); }
+void Tuple::add_front(TupleValue *value) { values_.emplace(values_.begin(), value); }
 void Tuple::add(const std::shared_ptr<TupleValue> &other) {
   values_.emplace_back(other);
 }
+void Tuple::add_front(const std::shared_ptr<TupleValue> &other) { values_.emplace(values_.begin(), other); }
 void Tuple::add(int value, AttrType type) {
   if (type == DATES)
     add(new DateValue(value));
@@ -103,6 +106,10 @@ void TupleSchema::add(AttrType type, const char *table_name,
   fields_.emplace_back(type, table_name, field_name);
 }
 
+void TupleSchema::add_front(AttrType type, const char *table_name, const char *field_name) {
+  fields_.emplace(fields_.begin(), type, table_name, field_name);
+}
+
 void TupleSchema::add_if_not_exists(AttrType type, const char *table_name,
                                     const char *field_name) {
   for (const auto &field : fields_) {
@@ -158,7 +165,31 @@ void TupleSchema::print(std::ostream &os, bool is_single_table) const {
     os << "No schema";
     return;
   }
-
+  if (fields_.size() > 0) {
+    // 判断有多张表还是只有一张表
+    std::set<std::string> table_names;
+    for (const auto &field : fields_) {
+      table_names.insert(field.table_name());
+    }
+    for (std::vector<TupleField>::const_iterator iter = fields_.begin(),
+                                                 end = --fields_.end();
+         iter != end; ++iter) {
+      if (!is_single_table) {
+        os << iter->table_name() << std::string(".");
+      }
+      os << iter->field_name() << std::string(" | ");
+    }
+    if (!is_single_table) {
+      os << std::string(fields_.back().table_name()) << std::string(".");
+    }
+    os << std::string(fields_.back().field_name());
+    if (aggr_fields_.size() > 0) {
+      os << std::string(" | ");
+    } else {
+      os << std::endl;
+    }
+    
+  }
   if (aggr_fields_.size() > 0) {
     // 判断有多张表还是只有一张表
     std::set<std::string> table_names;
@@ -310,24 +341,6 @@ void TupleSchema::print(std::ostream &os, bool is_single_table) const {
         LOG_DEBUG("Aggregation AGGR_UNDEFINED.");
     }
     os << aggr_all_field_name << std::endl;
-  } else {
-    // 判断有多张表还是只有一张表
-    std::set<std::string> table_names;
-    for (const auto &field : fields_) {
-      table_names.insert(field.table_name());
-    }
-    for (std::vector<TupleField>::const_iterator iter = fields_.begin(),
-                                                 end = --fields_.end();
-         iter != end; ++iter) {
-      if (!is_single_table) {
-        os << iter->table_name() << std::string(".");
-      }
-      os << iter->field_name() << std::string(" | ");
-    }
-    if (!is_single_table) {
-      os << std::string(fields_.back().table_name()) << std::string(".");
-    }
-    os << std::string(fields_.back().field_name()) << std::endl;
   }
 }
 
@@ -390,11 +403,17 @@ void TupleSet::set_schema(const TupleSchema &schema) { schema_ = schema; }
 
 const TupleSchema &TupleSet::get_schema() const { return schema_; }
 
+TupleSchema &TupleSet::get_edit_schema() { return schema_; }
+
+std::vector<Tuple> &TupleSet::get_edit_tuples() { return tuples_; }
+
 bool TupleSet::is_empty() const { return tuples_.empty(); }
 
 int TupleSet::size() const { return tuples_.size(); }
 
 const Tuple &TupleSet::get(int index) const { return tuples_[index]; }
+
+Tuple &TupleSet::get_edit(int index) { return tuples_[index]; }
 
 const std::vector<Tuple> &TupleSet::tuples() const { return tuples_; }
 
@@ -1011,7 +1030,7 @@ RC AggregationRecordConverter::final_add_record() {
       } else {
         tuple.add(value_tuple->value() / line_counts_[i]);
       }
-      break;
+      continue;
     }
     tuple.add(aggr_results_[i]);
     // const AggrField &aggr_field = aggr_fields[i];

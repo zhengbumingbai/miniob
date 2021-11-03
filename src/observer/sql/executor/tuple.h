@@ -35,7 +35,9 @@ public:
   Tuple & operator=(Tuple &&other) noexcept ;
 
   void add(TupleValue *value);
+  void add_front(TupleValue *value);
   void add(const std::shared_ptr<TupleValue> &other);
+  void add_front(const std::shared_ptr<TupleValue> &other);
 //   void add(int value);
   void add(int value, AttrType type);
   void add(float value);
@@ -53,6 +55,10 @@ public:
 
   const TupleValue &get(int index) const {
     return *values_[index];
+  }
+
+  std::shared_ptr<TupleValue> get_edit(int index) const {
+    return values_[index];
   }
 
   const std::shared_ptr<TupleValue> &get_pointer(int index) const {
@@ -141,6 +147,7 @@ public:
 
   void add(AttrType type, const char *table_name, const char *field_name);
   void add_if_not_exists(AttrType type, const char *table_name, const char *field_name);
+  void add_front(AttrType type, const char *table_name, const char *field_name);
 
   void add_aggr(AggrType aggr_type, AttrType type, const char *table_name, Table* table, const char *field_name, const Value* constant_value);
   void add_aggr_if_not_exists(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name);
@@ -187,6 +194,10 @@ public:
 
   const TupleSchema &get_schema() const;
 
+  TupleSchema &get_edit_schema();
+
+  std::vector<Tuple>& get_edit_tuples();
+
   void add(Tuple && tuple);
 
   void clear();
@@ -194,6 +205,7 @@ public:
   bool is_empty() const;
   int size() const;
   const Tuple &get(int index) const;
+  Tuple &get_edit(int index);
   const std::vector<Tuple> &tuples() const;
   void print(std::ostream &os, bool is_single_table) const;
   void sort(bool is_single_table,const OrderAttr *order_attr,const int order_num) ;
