@@ -25,6 +25,7 @@ extern double atof();
 %option bison-bridge
 %option reentrant
 
+// push test
 WHITE_SAPCE      [\ \t\b\f]
 DIGIT            [0-9]+
 
