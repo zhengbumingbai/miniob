@@ -482,10 +482,11 @@ expression:
 	;
 
 expression_value:
-	ID DOT ID: {
+	ID {
 
 	}
-	| ID {
+    |
+    ID DOT ID {
 
 	}
 	| NUMBER {
@@ -503,7 +504,7 @@ express_operator:
 	| SUB_OP {
 
 	}
-	| MUL_OP {
+	| STAR {
 
 	}
 	| DIV_OP {
