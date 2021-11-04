@@ -35,7 +35,9 @@ public:
   Tuple & operator=(Tuple &&other) noexcept ;
 
   void add(TupleValue *value);
+  void add_front(TupleValue *value);
   void add(const std::shared_ptr<TupleValue> &other);
+  void add_front(const std::shared_ptr<TupleValue> &other);
 //   void add(int value);
   void add(int value, AttrType type);
   void add(float value);
@@ -53,6 +55,10 @@ public:
 
   const TupleValue &get(int index) const {
     return *values_[index];
+  }
+
+  std::shared_ptr<TupleValue> get_edit(int index) const {
+    return values_[index];
   }
 
   const std::shared_ptr<TupleValue> &get_pointer(int index) const {
@@ -89,14 +95,15 @@ private:
 
 class AggrField {
 public:
-  AggrField(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name, const Value* constant_value) :
+  AggrField(AggrType aggr_type, AttrType type, const char *table_name, Table* table,  const char *field_name, const Value* constant_value) :
           aggr_type_(aggr_type), type_(type) {
     if (table_name != nullptr) {
-      field_name_ = std::string(table_name);
+      table_name_ = std::string(table_name);
     }
     if (field_name != nullptr) {
       field_name_ = std::string(field_name);
     }
+    table_ = table;
     constant_value_ = constant_value;
   }
 
@@ -106,6 +113,10 @@ public:
 
   AttrType  type() const{
     return type_;
+  }
+
+  Table* table() const {
+    return table_;
   }
 
   const char *table_name() const {
@@ -125,6 +136,7 @@ private:
   AggrType aggr_type_;
   std::string table_name_;
   std::string field_name_;
+  Table* table_;
   const Value* constant_value_;
 };
 
@@ -135,8 +147,9 @@ public:
 
   void add(AttrType type, const char *table_name, const char *field_name);
   void add_if_not_exists(AttrType type, const char *table_name, const char *field_name);
+  void add_front(AttrType type, const char *table_name, const char *field_name);
 
-  void add_aggr(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name, const Value* constant_value);
+  void add_aggr(AggrType aggr_type, AttrType type, const char *table_name, Table* table, const char *field_name, const Value* constant_value);
   void add_aggr_if_not_exists(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name);
   // void merge(const TupleSchema &other);
   void append(const TupleSchema &other);
@@ -181,6 +194,10 @@ public:
 
   const TupleSchema &get_schema() const;
 
+  TupleSchema &get_edit_schema();
+
+  std::vector<Tuple>& get_edit_tuples();
+
   void add(Tuple && tuple);
 
   void clear();
@@ -188,6 +205,7 @@ public:
   bool is_empty() const;
   int size() const;
   const Tuple &get(int index) const;
+  Tuple &get_edit(int index);
   const std::vector<Tuple> &tuples() const;
   void print(std::ostream &os, bool is_single_table) const;
   void sort(bool is_single_table,const OrderAttr *order_attr,const int order_num) ;
@@ -213,9 +231,8 @@ private:
 class AggregationRecordConverter {
 public:
   AggregationRecordConverter(Table *table, TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
-
   AggregationRecordConverter(TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs);
-
+  AggregationRecordConverter(TupleSet &tuple_set, std::vector<const AggrAttr *> &aggr_attrs, const TupleSchema* schema);
   ~AggregationRecordConverter(){
     // for (TupleValue* aggr_result : aggr_results_) {
     //   delete aggr_result;
@@ -232,6 +249,7 @@ private:
   std::vector<const AggrAttr *> &aggr_attrs_;
   std::vector<TupleValue*> aggr_results_;
   std::vector<int> line_counts_;
+  const TupleSchema* schema_;
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_TUPLE_H_

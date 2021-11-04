@@ -49,6 +49,20 @@ void aggr_attr_destory(AggrAttr *aggr_attr) {
   aggr_attr->attribute_name = nullptr;
 }
 
+void group_attr_init(GroupAttr *group_attr, const char *relation_name,const char* attribute_name){
+    if(relation_name != nullptr) {
+        group_attr->relation_name = strdup(relation_name);
+    }else {
+        group_attr->relation_name = nullptr;
+    }
+    
+    if(attribute_name!=nullptr) {
+        group_attr->attribute_name = strdup(attribute_name);
+    }else {
+        group_attr->attribute_name = nullptr;
+    }
+}
+
 void order_attr_init(OrderAttr *order_attr,OrderType order_type,const char *relation_name,const char* attribute_name){
     order_attr->order_type = order_type;
     if(relation_name != nullptr) {
@@ -62,6 +76,17 @@ void order_attr_init(OrderAttr *order_attr,OrderType order_type,const char *rela
     }else {
         order_attr->attribute_name = nullptr;
     }
+}
+
+void group_attr_destory(GroupAttr *group_attr){
+    if (group_attr->relation_name != nullptr) {
+      free(group_attr->relation_name);
+    }
+    if (group_attr->attribute_name != nullptr) {
+      free(group_attr->attribute_name);
+    }
+    group_attr->relation_name = nullptr;
+    group_attr->attribute_name = nullptr;
 }
 
 void order_attr_destory(OrderAttr *order_attr){
@@ -295,6 +320,10 @@ void selects_append_order_attribute(Selects *selects, OrderAttr *order_attr) {
   selects->order_attr[selects->order_num++] = *order_attr;
 }
 
+void selects_append_group_attribute(Selects *selects, GroupAttr *group_attr) {
+  selects->group_attr[selects->group_num++] = *group_attr;
+}
+
 
 void selects_append_relation(Selects *selects, const char *relation_name) {
   selects->relations[selects->relation_num++] = strdup(relation_name);
@@ -336,6 +365,12 @@ void selects_destroy(Selects *selects) {
   for (size_t i = 0; i < selects->order_num; i++)
   {
       order_attr_destory(&selects->order_attr[i]);
+  }
+  selects->order_num = 0;
+
+  for (size_t i = 0; i < selects->group_num; i++)
+  {
+      group_attr_destory(&selects->group_attr[i]);
   }
   selects->order_num = 0;
 }

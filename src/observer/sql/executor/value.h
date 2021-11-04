@@ -198,11 +198,13 @@ private:
 class StringValue : public TupleValue
 {
 public:
-    StringValue(const char *value, int len) : value_(value, len)
+    StringValue(const char *value, int len)
     {
+        value_ = std::string(value, len);
     }
-    explicit StringValue(const char *value) : value_(value)
+    explicit StringValue(const char *value)
     {
+        value_ = std::string(value);
     }
 
     void to_string(std::ostream &os) const override

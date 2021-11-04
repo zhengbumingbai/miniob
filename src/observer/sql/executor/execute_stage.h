@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/seda/stage.h"
 #include "sql/parser/parse.h"
+#include "sql/executor/tuple.h"
 #include "rc.h"
 
 class SessionEvent;
@@ -45,4 +46,5 @@ private:
   Stage *mem_storage_stage_ = nullptr;
 };
 
+RC aggr_execution(const Selects &selects, const char *db, TupleSet& tupleset_in, TupleSet& tupleset_out);
 #endif //__OBSERVER_SQL_EXECUTE_STAGE_H__
