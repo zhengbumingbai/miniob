@@ -33,6 +33,10 @@ typedef enum { ASC_T, DESC_T } OrderType;
 //属性值类型
 typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, NULLFIELD, TEXTS } AttrType;
 
+// 运算符类型
+typedef enum { ADD, SUB, MUL, DIV } OpType;
+
+
 //属性值
 typedef struct _Value {
   AttrType type;  // type of value
@@ -219,9 +223,31 @@ typedef struct Query {
   union Queries sstr;
 } Query;
 
+
+typedef struct _ExpressionTree{
+    ExpressionNode *root;
+} ExpressionTree;
+
+
+
+typedef struct _ExpressionNode
+{
+    int isExpression;
+    ExpressionNode *left_expression;
+    OpType op;
+    ExpressionNode *right_expression;
+    int isValue;
+    RelAttr relation_attr;
+    Value constant_value;
+}ExpressionNode;
+
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
+void expression_node_init(int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value);
+void expression_node_destory(ExpressionNode *node);
+
+void expression_atom_value_init();
 void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op, const char *relation_name, const char *attribute_name);
 void aggr_attr_destory(AggrAttr *aggr_attr);
 

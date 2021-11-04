@@ -4,7 +4,7 @@
 #include "sql/parser/parse_defs.h"
 #include "sql/parser/yacc_sql.tab.h"
 #include "sql/parser/lex.yy.h"
-// #include "common/log/log.h" // 包含C++中的头文件
+#include "common/log/log.h" // 包含C++中的头文件
 
 #include<stdio.h>
 #include<stdlib.h>
@@ -119,7 +119,6 @@ ParserContext *get_context(yyscan_t scanner)
         ORDER
         GROUP
         BY
-        TEXT
 		INNER
 		JOIN
 		ADD_OP
@@ -131,10 +130,12 @@ ParserContext *get_context(yyscan_t scanner)
   struct _Attr *attr;
   struct _Condition *condition1;
   struct _Value *value1;
+  struct _ExpressionTree *exp_tree;
+  struct _ExpressionNode *exp_node;
   char *string;
   int number;
   float floats;
-	char *position;
+  char *position;
 }
 
 %token <number> NUMBER
@@ -154,6 +155,11 @@ ParserContext *get_context(yyscan_t scanner)
 %type <number> number;
 %type <number> order_type
 %type <number> aggr_op
+%type <number> add_or_sub
+%type <number> mul_or_div
+%type <exp_node> atom_expression
+%type <exp_node> add_sub_expression
+%type <exp_node> mul_div_expression
 
 %%
 
@@ -496,48 +502,6 @@ order_type:
     }
     ;
 
-// 一个表达式的形式就是 a 或者 a +-*\ b,其中a也可以是一个表达式 所以是嵌套的
-expression:
-	LBRACE expression RBRACE {
-
-	}
-	| expression_value {
-
-	}
-	| expression express_operator expression
-	;
-
-expression_value:
-	ID {
-
-	}
-    |
-    ID DOT ID {
-
-	}
-	| NUMBER {
-
-	}
-	| FLOAT {
-
-	}
-	;
-
-express_operator:
-	ADD_OP {
-
-	}
-	| SUB_OP {
-
-	}
-	| STAR {
-
-	}
-	| DIV_OP {
-
-	}
-	;
-
 select_attr:
     STAR {  
 			RelAttr attr;
@@ -570,7 +534,90 @@ select_attr:
 	| aggr aggr_list {
 
 	}
+    | aggr expression_list {
+
+    }
+    | ID expression_list {
+
+    } 
+    | ID DOT ID expression_list {
+
+    }
+    | add_sub_expression expression_list {
+
+    }
+    | add_sub_expression attr_list {
+
+    } 
+    | add_sub_expression aggr_list {
+
+    }
     ;
+
+expression_list:
+    /* Empty */
+    | COMMA add_sub_expression {
+
+    }
+
+/* LR 分析法 忘得差不多了 百度的结果如下： */
+add_sub_expression:
+    add_sub_expression add_or_sub mul_div_expression {
+
+    }
+    | mul_div_expression {
+
+    }
+    ;
+
+add_or_sub:
+    ADD_OP {
+
+    }
+    | SUB_OP {
+
+    }
+    ;
+
+mul_div_expression:
+    mul_div_expression mul_or_div atom_expression {
+
+    } 
+    | atom_expression {
+
+    }
+    ;
+
+mul_or_div:
+    STAR {
+        /* 记录操作符 */
+    }
+    | DIV_OP {
+        /* 记录操作符 */
+    }
+    ;
+
+atom_expression:
+    LBRACE add_sub_expression RBRACE{
+
+    }
+    |
+	ID {
+        /* 记录 列名 */
+	}
+    |
+    ID DOT ID {
+        /* 记录表名 */
+	}
+	| NUMBER {
+        /* 记录数字 */
+	}
+	| FLOAT {
+        ExpressionNode node;
+        RelAttr attr;
+        expression_node_init(0,NULL,0,NULL,1,);
+	}
+	;
 
 aggr_list:
 	COMMA aggr aggr_list
