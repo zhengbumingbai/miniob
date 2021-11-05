@@ -130,12 +130,14 @@ union YYSTYPE
   struct _Attr *attr;
   struct _Condition *condition1;
   struct _Value *value1;
+  struct _ExpressionTree *exp_tree;
+  struct _ExpressionNode *exp_node;
   char *string;
   int number;
   float floats;
-	char *position;
+  char *position;
 
-#line 139 "yacc_sql.tab.h"
+#line 141 "yacc_sql.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

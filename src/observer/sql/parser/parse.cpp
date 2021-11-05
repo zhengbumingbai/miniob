@@ -24,6 +24,38 @@ RC parse(char *st, Query *sqln);
 extern "C" {
 #endif  // __cplusplus
 
+
+void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value) {
+    node->isExpression =isExpression;
+    node->left_expression = left_expression;
+    node->right_expression = right_expression;
+    node->op = op;
+    
+    node->isValue = isValue;
+    node->constant_value = constant_value;
+    node->relation_attr = relation_attr;
+}
+
+void expression_node_destory(ExpressionNode *node){
+    if(node != nullptr ) {
+        
+        if(node->left_expression!=nullptr) {
+            expression_node_destory(node->left_expression);
+        }
+        if(node->right_expression!=nullptr) {
+            expression_node_destory(node->right_expression);
+        }
+
+        if(node->relation_attr!=nullptr) {
+            relation_attr_destroy(node->relation_attr);
+        }
+
+        if(node->constant_value!=nullptr) {
+            value_destroy(node->constant_value);
+        }
+    }
+}
+
 void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op,
                     const char *relation_name, const char *attribute_name) {
   aggr_attr->aggr_type = aggr_op;
@@ -97,20 +129,30 @@ void order_attr_destory(OrderAttr *order_attr){
 }
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name,
-                        const char *attribute_name) {
+                        const char *attribute_name, ExpressionNode *node) {
   if (relation_name != nullptr) {
     relation_attr->relation_name = strdup(relation_name);
   } else {
     relation_attr->relation_name = nullptr;
   }
   relation_attr->attribute_name = strdup(attribute_name);
+  relation_attr->node = node;
 }
 
 void relation_attr_destroy(RelAttr *relation_attr) {
-  free(relation_attr->relation_name);
-  free(relation_attr->attribute_name);
+  if(relation_attr->attribute_name) {
+    free(relation_attr->attribute_name);
+  }
+
+  if(relation_attr->relation_name) {    
+    free(relation_attr->relation_name);
+  }
   relation_attr->relation_name = nullptr;
   relation_attr->attribute_name = nullptr;
+
+  if(relation_attr->node) {
+      expression_node_destory(relation_attr->node);
+  }
 }
 // insert into tt values('2038-1-19');
 // SELECT *FROM tt WHERE u_date > '2020-1-20';
@@ -265,7 +307,7 @@ void value_destroy(Value *value) {
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr,
                     RelAttr *left_attr, Value *left_value, int right_is_attr,
-                    RelAttr *right_attr, Value *right_value) {
+                    RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right) {
   condition->comp = comp;
   condition->left_is_attr = left_is_attr;
   if (left_is_attr) {
@@ -280,7 +322,11 @@ void condition_init(Condition *condition, CompOp comp, int left_is_attr,
   } else {
     condition->right_value = *right_value;
   }
+
+  condition->left = left;
+  condition->right = right;
 }
+
 void condition_destroy(Condition *condition) {
   if (condition->left_is_attr) {
     relation_attr_destroy(&condition->left_attr);
@@ -291,6 +337,15 @@ void condition_destroy(Condition *condition) {
     relation_attr_destroy(&condition->right_attr);
   } else {
     value_destroy(&condition->right_value);
+  }
+
+//   zt释放表达式树
+  if(condition->left) {
+      expression_node_destory(condition->left);
+  }
+
+  if(condition->right) {
+       expression_node_destory(condition->right);
   }
 }
 

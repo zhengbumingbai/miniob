@@ -435,6 +435,7 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->select_length=0;
 			CONTEXT->value_length = 0;
 	}
+    ;
 
 order:
     /* empty */ 
@@ -475,6 +476,7 @@ group_id_list:
 		group_attr_init(&group_attr, $2, $4);
 		selects_append_group_attribute(&CONTEXT->ssql->sstr.selection, &group_attr);
 	}
+    ;
 
 order_list:
     /* empty */
@@ -507,6 +509,11 @@ select_attr:
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, "*");
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+
+            ExpressionTree tree;
+            ExpressionNode node;
+            expression_node_init();
+            expression_tree_init(&tree, $1);
 		}
     | ID attr_list {
 			RelAttr attr;
@@ -533,89 +540,93 @@ select_attr:
 	}
 	| aggr aggr_list {
 
-	}
-    | aggr expression_list {
-
-    }
-    | ID expression_list {
-
-    } 
-    | ID DOT ID expression_list {
-
-    }
+	} 
     | add_sub_expression expression_list {
-
-    }
-    | add_sub_expression attr_list {
-
-    } 
-    | add_sub_expression aggr_list {
-
+        /* ExpressionTree tree;
+        expression_tree_init(&tree, $1);
+        selects_append_aggr_attribute */
     }
     ;
 
 expression_list:
     /* Empty */
     | COMMA add_sub_expression {
-
+        
     }
 
 /* LR 分析法 忘得差不多了 百度的结果如下： */
 add_sub_expression:
     add_sub_expression add_or_sub mul_div_expression {
-
+        $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
+        expression_node_init($$, 1, $1, $2, $3, 0, NULL, NULL);
     }
     | mul_div_expression {
-
+        $$ = $1;
     }
     ;
 
 add_or_sub:
     ADD_OP {
-
+        $$ = ADD;
     }
     | SUB_OP {
-
+        $$ = SUB;
     }
     ;
 
 mul_div_expression:
     mul_div_expression mul_or_div atom_expression {
-
+        $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
+        expression_node_init($$, 1, $1, $2, $3, 0, NULL, NULL);
     } 
     | atom_expression {
-
+        $$ = $1;
     }
     ;
 
 mul_or_div:
     STAR {
         /* 记录操作符 */
+        $$ = MUL;
     }
     | DIV_OP {
         /* 记录操作符 */
+        $$ = DIV;
     }
     ;
 
 atom_expression:
     LBRACE add_sub_expression RBRACE{
-
+        $$ = $2;
     }
     |
 	ID {
         /* 记录 列名 */
+        $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
+        RelAttr *attr = ( RelAttr *)malloc(sizeof( RelAttr));;
+        relation_attr_init(attr, NULL, $1, NULL);
+        expression_node_init($$, 0, NULL, 0, NULL, 0, attr, NULL);
 	}
     |
     ID DOT ID {
         /* 记录表名 */
+        $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
+        RelAttr *attr = ( RelAttr *)malloc(sizeof( RelAttr));;
+        relation_attr_init(attr, $1, $3, NULL);
+        expression_node_init($$, 0, NULL, 0, NULL, 0, attr, NULL);
 	}
 	| NUMBER {
         /* 记录数字 */
+        $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
+        Value *value = ( Value *)malloc(sizeof( Value));;
+        value_init_integer(value,  $1);
+        expression_node_init($$, 0, NULL, 0, NULL, 1, NULL, value);
 	}
 	| FLOAT {
-        ExpressionNode node;
-        RelAttr attr;
-        expression_node_init(0,NULL,0,NULL,1,);
+        $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
+        Value *value = ( Value *)malloc(sizeof( Value));;
+        value_init_float(value,  $1);
+        expression_node_init($$, 0, NULL, 0, NULL, 1, NULL, value);
 	}
 	;
 
