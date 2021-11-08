@@ -25,7 +25,7 @@ extern "C" {
 #endif  // __cplusplus
 
 
-void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value) {
+void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value,int isBracket) {
     node->isExpression =isExpression;
     node->left_expression = left_expression;
     node->right_expression = right_expression;
@@ -34,6 +34,7 @@ void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode
     node->isValue = isValue;
     node->constant_value = constant_value;
     node->relation_attr = relation_attr;
+    node->isBracket = isBracket;
 }
 
 void expression_node_destory(ExpressionNode *node){
@@ -130,13 +131,21 @@ void order_attr_destory(OrderAttr *order_attr){
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name,
                         const char *attribute_name, ExpressionNode *node) {
+  relation_attr->node = node;
   if (relation_name != nullptr) {
     relation_attr->relation_name = strdup(relation_name);
   } else {
     relation_attr->relation_name = nullptr;
   }
+
+  if(node != nullptr && node->relation_attr != nullptr) {
+      relation_attr->relation_name = node->relation_attr->relation_name;
+      relation_attr->attribute_name = node->relation_attr->attribute_name;
+  }
+  if(attribute_name != nullptr) {
+      
   relation_attr->attribute_name = strdup(attribute_name);
-  relation_attr->node = node;
+  }
 }
 
 void relation_attr_destroy(RelAttr *relation_attr) {

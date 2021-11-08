@@ -47,7 +47,7 @@ typedef struct _Value {
 typedef struct {
   char *relation_name;   // relation name (may be NULL) 表名
   char *attribute_name;  // attribute name              属性名
-  ExpressionNode *node;
+  struct _ExpressionNode *node;
 } RelAttr;
 
 typedef struct {
@@ -93,8 +93,8 @@ typedef struct _Condition {
   RelAttr right_attr;  // right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value right_value;   // right-hand side value if right_is_attr = FALSE
 
-  ExpressionNode *left;
-  ExpressionNode *right;
+  struct _ExpressionNode *left;
+  struct _ExpressionNode *right;
 
 } Condition;
 
@@ -232,10 +232,11 @@ typedef struct Query {
 typedef struct _ExpressionNode
 {
     int isExpression;
-    ExpressionNode *left_expression;
+    struct _ExpressionNode *left_expression;
     OpType op;
-    ExpressionNode *right_expression;
+    struct _ExpressionNode *right_expression;
     int isValue;
+    int isBracket;
     RelAttr *relation_attr;
     Value *constant_value;
 }ExpressionNode;
@@ -243,14 +244,14 @@ typedef struct _ExpressionNode
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
-void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value);
+void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value,int isBracket);
 
 void expression_node_destory(ExpressionNode *node);
 
 void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op, const char *relation_name, const char *attribute_name);
 void aggr_attr_destory(AggrAttr *aggr_attr);
 
-void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name,ExpressionNode *node = NULL);
+void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name, ExpressionNode *node);
 void relation_attr_destroy(RelAttr *relation_attr);
 
 void order_attr_init(OrderAttr *order_attr, OrderType order_type,const char *relation_name,const char* attribute_name);
@@ -279,7 +280,7 @@ void value_destroy(Value *value);
 // bool CheckDateValid(const std::string &strDate);
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-                    int right_is_attr, RelAttr *right_attr, Value *right_value,ExpressionNode *left = NULL,ExpressionNode *right = NULL);
+                    int right_is_attr, RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right);
 void condition_destroy(Condition *condition);
 
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, int nullable);

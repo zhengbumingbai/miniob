@@ -107,7 +107,7 @@ QUOTE            [\'\"]
 ">"                                      RETURN_TOKEN(GT);
 "+"										 RETURN_TOKEN(ADD_OP);
 "-"										 RETURN_TOKEN(SUB_OP);
-"\\"									 RETURN_TOKEN(DIV_OP);
+"/"									 RETURN_TOKEN(DIV_OP);
 
 
 {QUOTE}[\40\42\47A-Za-z0-9_/\.\-]*{QUOTE}	     yylval->string=strdup(yytext); RETURN_TOKEN(SSS);
