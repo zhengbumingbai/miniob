@@ -1181,14 +1181,14 @@ std::string op_2_string(OpType type) {
 std::string expression_2_string(ExpressionNode *node,bool is_single_table) {
   std::string result;
   if (node != nullptr) {
-    if (node->isExpression)
-      result = expression_2_string(node->left_expression) +
+    if (node->isExpression){
+      result = expression_2_string(node->left_expression,is_single_table) +
                op_2_string(node->op) +
-               expression_2_string(node->right_expression);
-    else if (node->isValue)
+               expression_2_string(node->right_expression,is_single_table);}
+    else if (node->isValue){
       result = node->constant_value->type == INTS
                    ? std::to_string(*(int *)node->constant_value->data)
-                   : std::to_string(*(float *)node->constant_value->data);
+                   : std::to_string(*(float *)node->constant_value->data);}
     else {
         if(is_single_table) {
             result =  std::string(node->relation_attr->attribute_name);
