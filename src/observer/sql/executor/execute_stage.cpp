@@ -1222,7 +1222,7 @@ RC select_column_names(const TupleSchema &old_schema, const Selects &selects,
 
   if (selects.attributes[0].node != nullptr) {
     // 不是 * 的情况
-    for (int j = (selects.attr_num - 1); j >= 0; j--) {
+    for (int j = 0; j <selects.attr_num; j++) {
       const RelAttr &attr = selects.attributes[j];
       std::string expression_string = expression_2_string(attr.node,is_single_table);
       new_schema.add_expression_field(expression_string);
@@ -1314,7 +1314,7 @@ void select_columns(const TupleSet &joined_table, const Selects &selects,
       //根据表的相关字段选出列
       const Tuple &tuple = joined_table.get(i);
       Tuple select_tuple;
-      for (int j = selects.attr_num - 1; j >= 0; j--) {
+      for (int j = 0; j < selects.attr_num; j++) {
         ExpressionNode *node = selects.attributes[j].node;
         std::shared_ptr<TupleValue> result =
             caluate_result(node, joined_table_schema, tuple);
