@@ -34,7 +34,7 @@ typedef enum { ASC_T, DESC_T } OrderType;
 typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, NULLFIELD, TEXTS } AttrType;
 
 // 运算符类型
-typedef enum { ADD, SUB, MUL, DIV } OpType;
+typedef enum { NO_ALU_OP, ADD, SUB, MUL, DIV } OpType;
 
 
 //属性值
@@ -264,8 +264,8 @@ int str_to_time(const char *time_str);
 
 // 将字符串转化为int存储
 void value_init_date(Value *value, const char *v);
-void value_init_integer(Value *value, int v);
-void value_init_float(Value *value, float v);
+void value_init_integer(Value *value, int v, OpType op);
+void value_init_float(Value *value, float v, OpType op);
 void value_init_string(Value *value, const char *v);
 void value_init_null(Value * value);
 void value_destroy(Value *value);

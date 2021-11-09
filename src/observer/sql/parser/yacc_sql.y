@@ -156,6 +156,7 @@ ParserContext *get_context(yyscan_t scanner)
 %type <number> order_type
 %type <number> aggr_op
 %type <number> add_or_sub
+%type <number> sign
 %type <number> mul_or_div
 %type <exp_node> atom_expression
 %type <exp_node> add_sub_expression
@@ -378,11 +379,11 @@ value_list:
 	  }
     ;
 value:
-    NUMBER{	
-  		value_init_integer(&CONTEXT->values[CONTEXT->value_length++], $1);
+    sign NUMBER{
+  		value_init_integer(&CONTEXT->values[CONTEXT->value_length++], $2,$1);
 		}
-    |FLOAT{
-  		value_init_float(&CONTEXT->values[CONTEXT->value_length++], $1);
+    |sign FLOAT{
+  		value_init_float(&CONTEXT->values[CONTEXT->value_length++], $2,$1);
 		}
     |SSS {
 			$1 = substr($1,1,strlen($1)-2);
@@ -396,6 +397,15 @@ value:
 	|NULLTOKEN {
 		value_init_null(&CONTEXT->values[CONTEXT->value_length++]);
 	}
+    ;
+
+sign:
+    /* empty */ {
+        $$ = ADD;
+    }
+    | add_or_sub {
+        $$ = $1;
+    }
     ;
 
 delete:		/*  delete 语句的语法解析树*/

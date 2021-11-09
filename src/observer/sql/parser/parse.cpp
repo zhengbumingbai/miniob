@@ -232,13 +232,15 @@ void record_init(Insert_Record *record, Value *value, int value_length) {
   }
 }
 
-void value_init_integer(Value *value, int v) {
+void value_init_integer(Value *value, int v, OpType op) {
   value->type = INTS;
   value->data = malloc(sizeof(v));
+  if(op == SUB) v = -v;
   memcpy(value->data, &v, sizeof(v));
 }
-void value_init_float(Value *value, float v) {
+void value_init_float(Value *value, float v, OpType op) {
   value->type = FLOATS;
+  if(op == SUB) v = -v;
   value->data = malloc(sizeof(v));
   memcpy(value->data, &v, sizeof(v));
 }
