@@ -1178,7 +1178,7 @@ std::string op_2_string(OpType type) {
   return "";
 }
 
-std::string expression_2_string(ExpressionNode *node) {
+std::string expression_2_string(ExpressionNode *node,bool is_single_table) {
   std::string result;
   if (node != nullptr) {
     if (node->isExpression)
@@ -1189,11 +1189,16 @@ std::string expression_2_string(ExpressionNode *node) {
       result = node->constant_value->type == INTS
                    ? std::to_string(*(int *)node->constant_value->data)
                    : std::to_string(*(float *)node->constant_value->data);
-    else
-      result = node->relation_attr->relation_name != nullptr
+    else {
+        if(is_single_table) {
+            result std::string(node->relation_attr->attribute_name);
+        }else {
+            result = node->relation_attr->relation_name != nullptr 
                    ? std::string(node->relation_attr->relation_name) + "." +
                          std::string(node->relation_attr->attribute_name)
                    : std::string(node->relation_attr->attribute_name);
+        }
+    }
     if (node->isBracket) {
       result = "(" + result + ")";
     }
@@ -1218,7 +1223,7 @@ RC select_column_names(const TupleSchema &old_schema, const Selects &selects,
     // 不是 * 的情况
     for (int j = (selects.attr_num - 1); j >= 0; j--) {
       const RelAttr &attr = selects.attributes[j];
-      std::string expression_string = expression_2_string(attr.node);
+      std::string expression_string = expression_2_string(attr.node,is_single_table);
       new_schema.add_expression_field(expression_string);
     }
   } else {
