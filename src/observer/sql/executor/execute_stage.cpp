@@ -1191,7 +1191,7 @@ std::string expression_2_string(ExpressionNode *node,bool is_single_table) {
                    : std::to_string(*(float *)node->constant_value->data);
     else {
         if(is_single_table) {
-            result std::string(node->relation_attr->attribute_name);
+            result =  std::string(node->relation_attr->attribute_name);
         }else {
             result = node->relation_attr->relation_name != nullptr 
                    ? std::string(node->relation_attr->relation_name) + "." +
