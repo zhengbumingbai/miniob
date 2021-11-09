@@ -520,6 +520,9 @@ select_attr:
         relation_attr_init(&attr, NULL, NULL, $1);
         selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
     }
+    | aggr expression_list {
+
+    }
     ;
 
 expression_list:
