@@ -51,8 +51,8 @@ ExecuteStage::ExecuteStage(const char *tag) : Stage(tag) {}
 ExecuteStage::~ExecuteStage() {}
 
 // add by cmk(2021/10/26)
-void find_conditions(const Selects &selects,
-                     std::vector<Condition> &conditions,std::vector<Condition> & expression_conditions);
+void find_conditions(const Selects &selects, std::vector<Condition> &conditions,
+                     std::vector<Condition> &expression_conditions);
 
 // add by cmk : 根据查询语句中指定的要查询的列，从joined
 // table中选出指定列组成新表
@@ -322,53 +322,60 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
   const Selects &selects = sql->sstr.selection;
 
   // Expression 元信息校验
-    for (int i = 0; i < selects.attr_num; i++)
-    {
-        RelAttr attribute = selects.attributes[i];
-        ExpressionNode * node = selects.attributes[i].node;
-        if(node != nullptr) {
-            bool is_single_table;
-            if(selects.relation_num > 1) is_single_table = false;
-            else if(selects.relation_num == 1) is_single_table = true;
-            else return RC::GENERIC_ERROR;
-            bool is_valid = check_expression_valid(selects, db, node, is_single_table);
-            if(!is_valid) {
-                 return GENERIC_ERROR;
-            }
-        }
+  for (int i = 0; i < selects.attr_num; i++) {
+    RelAttr attribute = selects.attributes[i];
+    ExpressionNode *node = selects.attributes[i].node;
+    if (node != nullptr) {
+      bool is_single_table;
+      if (selects.relation_num > 1)
+        is_single_table = false;
+      else if (selects.relation_num == 1)
+        is_single_table = true;
+      else
+        return RC::GENERIC_ERROR;
+      bool is_valid =
+          check_expression_valid(selects, db, node, is_single_table);
+      if (!is_valid) {
+        return GENERIC_ERROR;
+      }
+    }
+  }
+
+  // condition expression 元信息校验
+  for (int i = 0; i < selects.condition_num; i++) {
+    Condition condition = selects.conditions[i];
+    ExpressionNode *node = condition.left_expression;
+    if (node != nullptr) {
+      bool is_single_table;
+      if (selects.relation_num > 1)
+        is_single_table = false;
+      else if (selects.relation_num == 1)
+        is_single_table = true;
+      else
+        return RC::GENERIC_ERROR;
+      bool is_valid =
+          check_expression_valid(selects, db, node, is_single_table);
+      if (!is_valid) {
+        return GENERIC_ERROR;
+      }
     }
 
-    // condition expression 元信息校验
-    for (int i = 0; i < selects.condition_num; i++)
-    {
-        Condition condition = selects.conditions[i];
-        ExpressionNode * node = condition.left_expression;
-        if(node != nullptr) {
-            bool is_single_table;
-            if(selects.relation_num > 1) is_single_table = false;
-            else if(selects.relation_num == 1) is_single_table = true;
-            else return RC::GENERIC_ERROR;
-            bool is_valid = check_expression_valid(selects, db, node, is_single_table);
-            if(!is_valid) {
-                 return GENERIC_ERROR;
-            }
-        }
-
-        node = condition.right_expression;
-        if(node != nullptr) {
-            bool is_single_table;
-            if(selects.relation_num > 1) is_single_table = false;
-            else if(selects.relation_num == 1) is_single_table = true;
-            else return RC::GENERIC_ERROR;
-            bool is_valid = check_expression_valid(selects, db, node, is_single_table);
-            if(!is_valid) {
-                 return GENERIC_ERROR;
-            }
-        }
-
+    node = condition.right_expression;
+    if (node != nullptr) {
+      bool is_single_table;
+      if (selects.relation_num > 1)
+        is_single_table = false;
+      else if (selects.relation_num == 1)
+        is_single_table = true;
+      else
+        return RC::GENERIC_ERROR;
+      bool is_valid =
+          check_expression_valid(selects, db, node, is_single_table);
+      if (!is_valid) {
+        return GENERIC_ERROR;
+      }
     }
-    
-  
+  }
 
   // 对order进行元信息校验
   for (int i = 0; i < selects.order_num; i++) {
@@ -511,13 +518,12 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
       std::vector<Condition> expression_conditions;
       find_conditions(selects, conditions, expression_conditions);
       join_multiple_table(tuple_sets, conditions, joined_table);
-      
-      
+
       LOG_DEBUG("multiple table joined, joined table size is [%d]",
                 joined_table.size());
 
       // 联结完后 统一进行表达式树的过滤
-      const TupleSchema joined_tuple_set_schema =  joined_table.schema();
+      const TupleSchema joined_tuple_set_schema = joined_table.schema();
 
       TupleSet new_tuple_set;
       new_tuple_set.set_schema(joined_tuple_set_schema);
@@ -844,6 +850,18 @@ RC aggr_execution(const Selects &selects, const char *db, TupleSet &tupleset_in,
       char *rel_comp;
       char *attr_comp;
       Table *table;
+      if (attr.is_constant) {
+        if (selects.relation_num > 1) {
+          LOG_WARN("Aggr only recieve constant in single table.");
+          return RC::SCHEMA_TABLE_NOT_EXIST;
+        } else {
+          table = DefaultHandler::get_default().find_table(
+              db, selects.relations[0]);
+          attrs.push_back(&attr);
+          schema_add_aggr_field(&attr, table, attr.attribute_name, schema);
+          continue;
+        }
+      }
       if (attr.relation_name == nullptr) {
         if (selects.relation_num > 1) {
           LOG_WARN("Aggr must have table name in multi table, field [%s]",
@@ -1052,8 +1070,8 @@ const std::shared_ptr<TupleValue> get_value_from_tuple(
   if (value_index != -1) {
     auto &value = tuple.get_pointer(value_index);
     return value;
-  }else {
-      return nullptr;
+  } else {
+    return nullptr;
   }
 }
 
@@ -1076,16 +1094,16 @@ std::shared_ptr<TupleValue> caluate_result(
       f1 = std::dynamic_pointer_cast<IntValue>(left)->value();
     } else if ((*left).type() == FLOAT) {
       f1 = std::dynamic_pointer_cast<FloatValue>(left)->value();
-    }else {
-        return nullptr;
+    } else {
+      return nullptr;
     }
 
     if ((*right).type() == INT) {
       f2 = std::dynamic_pointer_cast<IntValue>(right)->value();
     } else if ((*right).type() == FLOAT) {
       f2 = std::dynamic_pointer_cast<FloatValue>(right)->value();
-    }else {
-        return nullptr;
+    } else {
+      return nullptr;
     }
 
     float number = 0;
@@ -1101,8 +1119,8 @@ std::shared_ptr<TupleValue> caluate_result(
         break;
       case DIV:
         number = f1 / f2;
-        if( f2==0 ) { 
-            return nullptr;
+        if (f2 == 0) {
+          return nullptr;
         }
         break;
       default:
@@ -1115,20 +1133,20 @@ std::shared_ptr<TupleValue> caluate_result(
   }
   //   如果是一个值则套上tuple外套返回
   else if (node->isValue) {
-    if(node->constant_value->type == INTS) {
-        int number = *(int *)(node->constant_value->data);
-        IntValue *temp = new IntValue(number);
-        std::shared_ptr<TupleValue> result(temp);
-        return result;
-    }else if(node->constant_value->type == FLOATS) {
-        float number = *(float *)(node->constant_value->data);
-        FloatValue *temp = new FloatValue(number);
-        std::shared_ptr<TupleValue> result(temp);
-    }else {
-        // 不是基本类型 暂时先不考虑处理
-        return nullptr;
+    if (node->constant_value->type == INTS) {
+      int number = *(int *)(node->constant_value->data);
+      IntValue *temp = new IntValue(number);
+      std::shared_ptr<TupleValue> result(temp);
+      return result;
+    } else if (node->constant_value->type == FLOATS) {
+      float number = *(float *)(node->constant_value->data);
+      FloatValue *temp = new FloatValue(number);
+      std::shared_ptr<TupleValue> result(temp);
+    } else {
+      // 不是基本类型 暂时先不考虑处理
+      return nullptr;
     }
-    
+
   }
   //   如果是一个属性名 则进行查找返回
   else {
@@ -1292,9 +1310,10 @@ void select_columns(const TupleSet &joined_table, const Selects &selects,
       Tuple select_tuple;
       for (int j = selects.attr_num - 1; j >= 0; j--) {
         ExpressionNode *node = selects.attributes[j].node;
-        std::shared_ptr<TupleValue> result = caluate_result(node, joined_table_schema, tuple);
-        if(result != nullptr){
-            select_tuple.add(caluate_result(node, joined_table_schema, tuple));   
+        std::shared_ptr<TupleValue> result =
+            caluate_result(node, joined_table_schema, tuple);
+        if (result != nullptr) {
+          select_tuple.add(caluate_result(node, joined_table_schema, tuple));
         }
       }
       joined_table_selected.add(std::move(select_tuple));
@@ -1318,8 +1337,8 @@ void select_columns(const TupleSet &joined_table, const Selects &selects,
 }
 
 // add by cmk(2021/10/24) : 找出和多个表相关的过滤条件
-void find_conditions(const Selects &selects,
-                     std::vector<Condition> &conditions,std::vector<Condition> & expression_conditions) {
+void find_conditions(const Selects &selects, std::vector<Condition> &conditions,
+                     std::vector<Condition> &expression_conditions) {
   for (size_t i = 0; i < selects.condition_num; i++) {
     const Condition &condition = selects.conditions[i];
     // 首先满足两边都不是表达式 同时两个都是属性值 但是属于不同的表
@@ -1330,8 +1349,8 @@ void find_conditions(const Selects &selects,
                        condition.right_attr.relation_name))) {
         conditions.push_back(condition);
       }
-    }else {
-        expression_conditions.push_back(condition);
+    } else {
+      expression_conditions.push_back(condition);
     }
   }
 }
@@ -1492,7 +1511,7 @@ bool tuple_matched_conditions(const Tuple &left_tuple, const Tuple &right_tuple,
         }
         cmp_result = left_in - right_in;
       } break;
-      case FLOATS: {
+      case FLOAT: {
         if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type) {
           break;
         }
