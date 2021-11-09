@@ -32,7 +32,14 @@ void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode
     node->op = op;
     
     node->isValue = isValue;
-    node->constant_value = constant_value;
+    if(constant_value) { 
+        node->constant_value = (Value *)malloc(sizeof(Value));
+        node->constant_value->type = constant_value->type;
+        node->constant_value->data = constant_value->data;
+    }else {
+        node->constant_value = nullptr;
+    }
+
     node->relation_attr = relation_attr;
     node->isBracket = isBracket;
 }
@@ -43,17 +50,27 @@ void expression_node_destory(ExpressionNode *node){
         if(node->left_expression!=nullptr) {
             expression_node_destory(node->left_expression);
         }
+
+        node->left_expression = nullptr;
+
         if(node->right_expression!=nullptr) {
             expression_node_destory(node->right_expression);
         }
+
+        node->right_expression = nullptr;
 
         if(node->relation_attr!=nullptr) {
             relation_attr_destroy(node->relation_attr);
         }
 
+        node->relation_attr = nullptr;
+
         if(node->constant_value!=nullptr) {
             value_destroy(node->constant_value);
         }
+
+        node->constant_value = nullptr;
+        
     }
 }
 
@@ -142,6 +159,7 @@ void relation_attr_init(RelAttr *relation_attr, const char *relation_name,
       relation_attr->relation_name = node->relation_attr->relation_name;
       relation_attr->attribute_name = node->relation_attr->attribute_name;
   }
+  
   if(attribute_name != nullptr) {
       
   relation_attr->attribute_name = strdup(attribute_name);
@@ -318,22 +336,27 @@ void condition_init(Condition *condition, CompOp comp, int left_is_attr,
                     RelAttr *left_attr, Value *left_value, int right_is_attr,
                     RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right) {
   condition->comp = comp;
-  condition->left_is_attr = left_is_attr;
-  if (left_is_attr) {
-    condition->left_attr = *left_attr;
-  } else {
-    condition->left_value = *left_value;
-  }
+  
+  condition->left_expression = left;
+  condition->right_expression = right;
+    if (!left->isExpression && !right->isExpression)
+    {
+        if(left->isValue) {
+            condition->left_is_attr = 0;
+            condition->left_value = *(left->constant_value);
+        }else {
+            condition->left_is_attr = 1;
+            condition->left_attr = *(left->relation_attr);
+        }
 
-  condition->right_is_attr = right_is_attr;
-  if (right_is_attr) {
-    condition->right_attr = *right_attr;
-  } else {
-    condition->right_value = *right_value;
-  }
-
-  condition->left = left;
-  condition->right = right;
+        if(right->isValue) {
+            condition->right_is_attr = 0;
+            condition->right_value = *(right->constant_value);
+        }else {
+            condition->right_is_attr = 1;
+            condition->right_attr = *(right->relation_attr);
+        }
+    }
 }
 
 void condition_destroy(Condition *condition) {
@@ -349,12 +372,12 @@ void condition_destroy(Condition *condition) {
   }
 
 //   zt释放表达式树
-  if(condition->left) {
-      expression_node_destory(condition->left);
+  if(condition->left_expression) {
+      expression_node_destory(condition->left_expression);
   }
 
-  if(condition->right) {
-       expression_node_destory(condition->right);
+  if(condition->right_expression) {
+       expression_node_destory(condition->right_expression);
   }
 }
 

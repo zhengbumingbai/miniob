@@ -52,7 +52,7 @@ ExecuteStage::~ExecuteStage() {}
 
 // add by cmk(2021/10/26)
 void find_conditions(const Selects &selects,
-                     std::vector<Condition> &conditions);
+                     std::vector<Condition> &conditions,std::vector<Condition> & expression_conditions);
 
 // add by cmk : 根据查询语句中指定的要查询的列，从joined
 // table中选出指定列组成新表
@@ -67,6 +67,14 @@ RC select_column_names(const TupleSchema &old_schema, const Selects &selects,
 void join_multiple_table(std::vector<TupleSet> &tuple_sets,
                          const std::vector<Condition> &conditions,
                          TupleSet &joined_table);
+
+std::shared_ptr<TupleValue> caluate_result(
+    ExpressionNode *node, const TupleSchema &joined_table_schema,
+    const Tuple &tuple);
+
+bool is_match_tuple(const std::vector<Condition> &expression_conditions,
+                    const TupleSchema &joined_tuple_set_schema,
+                    const Tuple &tuple);
 
 //! Parse properties, instantiate a stage object
 Stage *ExecuteStage::make_stage(const std::string &tag) {
@@ -236,6 +244,73 @@ void end_trx_if_need(Session *session, Trx *trx, bool all_right) {
   }
 }
 
+bool check_expression_valid(const Selects &selects, const char *db,
+                            ExpressionNode *node, bool is_single_table) {
+  if (node) {
+    if (node->isExpression) {
+      return check_expression_valid(selects, db, node->left_expression,
+                                    is_single_table) &&
+             check_expression_valid(selects, db, node->right_expression,
+                                    is_single_table);
+    } else if (node->isValue) {
+      return node->constant_value->type == INTS ||
+             node->constant_value->type == FLOATS;
+    } else {
+      char *relation_name = node->relation_attr->relation_name;
+      char *attribute_name = node->relation_attr->attribute_name;
+      if (relation_name != nullptr) {
+        Table *table =
+            DefaultHandler::get_default().find_table(db, relation_name);
+        if (nullptr == table) {
+          LOG_WARN("No such table [%s] in db [%s]", relation_name, db);
+          return false;
+        }
+
+        // 判断该表名是否在搜索的表中
+        bool isExistInSelectTable = false;
+        for (int i = 0; i < selects.relation_num; i++) {
+          if (strcmp(selects.relations[i], relation_name) == 0) {
+            isExistInSelectTable = true;
+            break;
+          }
+        }
+
+        if (!isExistInSelectTable) {
+          return false;
+        }
+
+        // 如果存在则判断该表有没有这个attribute
+        const FieldMeta *field = table->table_meta().field(attribute_name);
+        if (field == nullptr) {
+          return false;
+        }
+      } else {
+        // 如果没有指定表名 且不是单表 就返回出错
+        if (selects.relation_num != 1) {
+          return false;
+        }
+        // 如果是单表 则判断先检查该表是否存在
+        relation_name = selects.relations[0];
+        Table *table =
+            DefaultHandler::get_default().find_table(db, relation_name);
+        if (nullptr == table) {
+          LOG_WARN("No such table [%s] in db [%s]", relation_name, db);
+          return false;
+        }
+
+        // 如果存在则判断该表有没有这个attribute
+        const FieldMeta *field = table->table_meta().field(attribute_name);
+        if (field == nullptr) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+  }
+  return false;
+}
+
 // 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
 // 需要补充上这一部分.
 // 校验部分也可以放在resolve，不过跟execution放一起也没有关系
@@ -245,6 +320,55 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
   Session *session = session_event->get_client()->session;
   Trx *trx = session->current_trx();
   const Selects &selects = sql->sstr.selection;
+
+  // Expression 元信息校验
+    for (int i = 0; i < selects.attr_num; i++)
+    {
+        RelAttr attribute = selects.attributes[i];
+        ExpressionNode * node = selects.attributes[i].node;
+        if(node != nullptr) {
+            bool is_single_table;
+            if(selects.relation_num > 1) is_single_table = false;
+            else if(selects.relation_num == 1) is_single_table = true;
+            else return RC::GENERIC_ERROR;
+            bool is_valid = check_expression_valid(selects, db, node, is_single_table);
+            if(!is_valid) {
+                 return GENERIC_ERROR;
+            }
+        }
+    }
+
+    // condition expression 元信息校验
+    for (int i = 0; i < selects.condition_num; i++)
+    {
+        Condition condition = selects.conditions[i];
+        ExpressionNode * node = condition.left_expression;
+        if(node != nullptr) {
+            bool is_single_table;
+            if(selects.relation_num > 1) is_single_table = false;
+            else if(selects.relation_num == 1) is_single_table = true;
+            else return RC::GENERIC_ERROR;
+            bool is_valid = check_expression_valid(selects, db, node, is_single_table);
+            if(!is_valid) {
+                 return GENERIC_ERROR;
+            }
+        }
+
+        node = condition.right_expression;
+        if(node != nullptr) {
+            bool is_single_table;
+            if(selects.relation_num > 1) is_single_table = false;
+            else if(selects.relation_num == 1) is_single_table = true;
+            else return RC::GENERIC_ERROR;
+            bool is_valid = check_expression_valid(selects, db, node, is_single_table);
+            if(!is_valid) {
+                 return GENERIC_ERROR;
+            }
+        }
+
+    }
+    
+  
 
   // 对order进行元信息校验
   for (int i = 0; i < selects.order_num; i++) {
@@ -384,18 +508,38 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
       LOG_INFO("multiple table joining");
       TupleSet joined_table;
       std::vector<Condition> conditions;
-      find_conditions(selects, conditions);
+      std::vector<Condition> expression_conditions;
+      find_conditions(selects, conditions, expression_conditions);
       join_multiple_table(tuple_sets, conditions, joined_table);
-
+      
+      
       LOG_DEBUG("multiple table joined, joined table size is [%d]",
                 joined_table.size());
+
+      // 联结完后 统一进行表达式树的过滤
+      const TupleSchema joined_tuple_set_schema =  joined_table.schema();
+
+      TupleSet new_tuple_set;
+      new_tuple_set.set_schema(joined_tuple_set_schema);
+
+      for (int tuple_index = 0; tuple_index < joined_table.size();
+           tuple_index++) {
+        Tuple tuple = joined_table.get(tuple_index);
+
+        bool isOk = is_match_tuple(expression_conditions,
+                                   joined_tuple_set_schema, tuple);
+        // 所有条件都满足
+        if (isOk) {
+          new_tuple_set.add(std::move(tuple));
+        }
+      }
 
       // select需要的列
 
       if (selects.group_num > 0) {
         // 1. 分解为多个TupleSet
         std::vector<TupleSet> tuple_sets_out;
-        rc = group_decompose(joined_table, tuple_sets_out, selects, db);
+        rc = group_decompose(new_tuple_set, tuple_sets_out, selects, db);
         if (rc != RC::SUCCESS) {
           return rc;
         }
@@ -422,10 +566,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
       } else {
         TupleSet joined_table_selected;
         if (selects.aggr_num > 0) {
-          aggr_execution(selects, db, joined_table, joined_table_selected);
+          aggr_execution(selects, db, new_tuple_set, joined_table_selected);
           joined_table_selected.print(ss, is_single_table);
         } else {
-          select_columns(joined_table, selects, joined_table_selected,
+          select_columns(new_tuple_set, selects, joined_table_selected,
                          is_single_table);
           if (selects.order_num > 0) {
             joined_table_selected.sort(is_single_table, selects.order_attr,
@@ -472,7 +616,27 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
         aggr_execution(selects, db, tuple_sets[0], table_selected);
         table_selected.print(ss, is_single_table);
       } else {
-        select_columns(tuple_sets[0], selects, table_selected, is_single_table);
+        std::vector<Condition> expression_conditions;
+        TupleSet new_tuple_set;
+        new_tuple_set.set_schema(tuple_sets[0].schema());
+        for (int i = 0; i < selects.condition_num; i++) {
+          if (selects.conditions[i].left_expression->isExpression ||
+              selects.conditions[i].right_expression->isExpression) {
+            expression_conditions.push_back(selects.conditions[i]);
+          }
+        }
+
+        for (int i = 0; i < tuple_sets[0].size(); i++) {
+          Tuple tuple = tuple_sets[0].get(i);
+          bool isOk = is_match_tuple(expression_conditions,
+                                     new_tuple_set.get_schema(), tuple);
+          // 所有条件都满足
+          if (isOk) {
+            new_tuple_set.add(std::move(tuple));
+          }
+        }
+
+        select_columns(new_tuple_set, selects, table_selected, is_single_table);
         // 先排序
         if (selects.order_num > 0) {
           table_selected.sort(is_single_table, selects.order_attr,
@@ -490,6 +654,67 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
   session_event->set_response(ss.str());
   end_trx_if_need(session, trx, true);
   return rc;
+}
+
+bool is_match_tuple(const std::vector<Condition> &expression_conditions,
+                    const TupleSchema &joined_tuple_set_schema,
+                    const Tuple &tuple) {
+  bool isOk = true;
+  for (int i = 0; i < expression_conditions.size(); i++) {
+    Condition condition = expression_conditions[i];
+    CompOp op = condition.comp;
+    ExpressionNode *left_node = expression_conditions[i].left_expression;
+    ExpressionNode *right_node = expression_conditions[i].right_expression;
+
+    std::shared_ptr<TupleValue> left_value =
+        caluate_result(left_node, joined_tuple_set_schema, tuple);
+    std::shared_ptr<TupleValue> right_value =
+        caluate_result(right_node, joined_tuple_set_schema, tuple);
+
+    if (left_value != nullptr && right_value != nullptr) {
+      float f1, f2;
+      // 统一当成浮点数处理试试
+      if ((*left_value).type() == INT) {
+        f1 = std::dynamic_pointer_cast<IntValue>(left_value)->value();
+      } else if ((*left_value).type() == FLOAT) {
+        f1 = std::dynamic_pointer_cast<FloatValue>(left_value)->value();
+      } else {
+        return false;
+      }
+
+      if ((*right_value).type() == INT) {
+        f2 = std::dynamic_pointer_cast<IntValue>(right_value)->value();
+      } else if ((*right_value).type() == FLOAT) {
+        f2 = std::dynamic_pointer_cast<FloatValue>(right_value)->value();
+      } else {
+        return false;
+      }
+
+      float result = f1 - f2;
+
+      // 表达式只支持了普通的条件判断 IS ISNOT未加入
+      if (op == EQUAL_TO && result != 0) {
+        isOk = false;
+        break;
+      } else if (op == LESS_EQUAL && result > 0) {
+        isOk = false;
+        break;
+      } else if (op == NOT_EQUAL && result == 0) {
+        isOk = false;
+        break;
+      } else if (op == LESS_THAN && result >= 0) {
+        isOk = false;
+        break;
+      } else if (op == GREAT_EQUAL && result < 0) {
+        isOk = false;
+        break;
+      } else if (op == GREAT_THAN && result <= 0) {
+        isOk = false;
+        break;
+      }
+    }
+  }
+  return isOk;
 }
 
 bool match_table(const Selects &selects, const char *table_name_in_condition,
@@ -767,32 +992,39 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db,
   // }
 
   // 找出仅与此表相关的过滤条件, 或者都是值的过滤条件
+
   std::vector<DefaultConditionFilter *> condition_filters;
   for (size_t i = 0; i < selects.condition_num; i++) {
     const Condition &condition = selects.conditions[i];
-    if ((condition.left_is_attr == 0 &&
-         condition.right_is_attr == 0) ||  // 两边都是值
-        (condition.left_is_attr == 1 && condition.right_is_attr == 0 &&
-         match_table(selects, condition.left_attr.relation_name,
-                     table_name)) ||  // 左边是属性右边是值
-        (condition.left_is_attr == 0 && condition.right_is_attr == 1 &&
-         match_table(selects, condition.right_attr.relation_name,
-                     table_name)) ||  // 左边是值，右边是属性名
-        (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
-         match_table(selects, condition.left_attr.relation_name, table_name) &&
-         match_table(selects, condition.right_attr.relation_name,
-                     table_name))  // 左右都是属性名，并且表名都符合
-    ) {
-      DefaultConditionFilter *condition_filter = new DefaultConditionFilter();
-      RC rc = condition_filter->init(*table, condition);
-      if (rc != RC::SUCCESS) {
-        delete condition_filter;
-        for (DefaultConditionFilter *&filter : condition_filters) {
-          delete filter;
+
+    if (!condition.left_expression->isExpression &&
+        !condition.right_expression->isExpression) {
+      if ((condition.left_is_attr == 0 &&
+           condition.right_is_attr == 0) ||  // 两边都是值
+          (condition.left_is_attr == 1 && condition.right_is_attr == 0 &&
+           match_table(selects, condition.left_attr.relation_name,
+                       table_name)) ||  // 左边是属性右边是值
+          (condition.left_is_attr == 0 && condition.right_is_attr == 1 &&
+           match_table(selects, condition.right_attr.relation_name,
+                       table_name)) ||  // 左边是值，右边是属性名
+          (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
+           match_table(selects, condition.left_attr.relation_name,
+                       table_name) &&
+           match_table(selects, condition.right_attr.relation_name,
+                       table_name))  // 左右都是属性名，并且表名都符合
+
+      ) {
+        DefaultConditionFilter *condition_filter = new DefaultConditionFilter();
+        RC rc = condition_filter->init(*table, condition);
+        if (rc != RC::SUCCESS) {
+          delete condition_filter;
+          for (DefaultConditionFilter *&filter : condition_filters) {
+            delete filter;
+          }
+          return rc;
         }
-        return rc;
+        condition_filters.push_back(condition_filter);
       }
-      condition_filters.push_back(condition_filter);
     }
 
     // add by cmk :
@@ -817,8 +1049,12 @@ const std::shared_ptr<TupleValue> get_value_from_tuple(
     const TupleSchema &joined_table_schema, const char *table_name,
     const char *field_name, const Tuple &tuple) {
   int value_index = joined_table_schema.index_of_field(table_name, field_name);
-  auto &value = tuple.get_pointer(value_index);
-  return value;
+  if (value_index != -1) {
+    auto &value = tuple.get_pointer(value_index);
+    return value;
+  }else {
+      return nullptr;
+  }
 }
 
 std::shared_ptr<TupleValue> caluate_result(
@@ -840,15 +1076,19 @@ std::shared_ptr<TupleValue> caluate_result(
       f1 = std::dynamic_pointer_cast<IntValue>(left)->value();
     } else if ((*left).type() == FLOAT) {
       f1 = std::dynamic_pointer_cast<FloatValue>(left)->value();
+    }else {
+        return nullptr;
     }
 
     if ((*right).type() == INT) {
       f2 = std::dynamic_pointer_cast<IntValue>(right)->value();
     } else if ((*right).type() == FLOAT) {
       f2 = std::dynamic_pointer_cast<FloatValue>(right)->value();
+    }else {
+        return nullptr;
     }
 
-    float number;
+    float number = 0;
     switch (node->op) {
       case ADD:
         number = f1 + f2;
@@ -861,6 +1101,9 @@ std::shared_ptr<TupleValue> caluate_result(
         break;
       case DIV:
         number = f1 / f2;
+        if( f2==0 ) { 
+            return nullptr;
+        }
         break;
       default:
         break;
@@ -881,6 +1124,9 @@ std::shared_ptr<TupleValue> caluate_result(
         float number = *(float *)(node->constant_value->data);
         FloatValue *temp = new FloatValue(number);
         std::shared_ptr<TupleValue> result(temp);
+    }else {
+        // 不是基本类型 暂时先不考虑处理
+        return nullptr;
     }
     
   }
@@ -891,6 +1137,7 @@ std::shared_ptr<TupleValue> caluate_result(
         node->relation_attr->attribute_name, tuple);
     return result;
   }
+  return nullptr;
 }
 
 std::string op_2_string(OpType type) {
@@ -910,6 +1157,7 @@ std::string op_2_string(OpType type) {
     default:
       break;
   }
+  return "";
 }
 
 std::string expression_2_string(ExpressionNode *node) {
@@ -925,7 +1173,7 @@ std::string expression_2_string(ExpressionNode *node) {
                    : std::to_string(*(float *)node->constant_value->data);
     else
       result = node->relation_attr->relation_name != nullptr
-                   ? std::string(node->relation_attr->relation_name) + ":" +
+                   ? std::string(node->relation_attr->relation_name) + "." +
                          std::string(node->relation_attr->attribute_name)
                    : std::string(node->relation_attr->attribute_name);
     if (node->isBracket) {
@@ -1044,7 +1292,10 @@ void select_columns(const TupleSet &joined_table, const Selects &selects,
       Tuple select_tuple;
       for (int j = selects.attr_num - 1; j >= 0; j--) {
         ExpressionNode *node = selects.attributes[j].node;
-        select_tuple.add(caluate_result(node, joined_table_schema, tuple));
+        std::shared_ptr<TupleValue> result = caluate_result(node, joined_table_schema, tuple);
+        if(result != nullptr){
+            select_tuple.add(caluate_result(node, joined_table_schema, tuple));   
+        }
       }
       joined_table_selected.add(std::move(select_tuple));
     }
@@ -1068,13 +1319,19 @@ void select_columns(const TupleSet &joined_table, const Selects &selects,
 
 // add by cmk(2021/10/24) : 找出和多个表相关的过滤条件
 void find_conditions(const Selects &selects,
-                     std::vector<Condition> &conditions) {
+                     std::vector<Condition> &conditions,std::vector<Condition> & expression_conditions) {
   for (size_t i = 0; i < selects.condition_num; i++) {
     const Condition &condition = selects.conditions[i];
-    if (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
-        (0 != strcmp(condition.left_attr.relation_name,
-                     condition.right_attr.relation_name))) {
-      conditions.push_back(condition);
+    // 首先满足两边都不是表达式 同时两个都是属性值 但是属于不同的表
+    if (!condition.left_expression->isExpression &&
+        !condition.right_expression->isExpression) {
+      if (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
+          (0 != strcmp(condition.left_attr.relation_name,
+                       condition.right_attr.relation_name))) {
+        conditions.push_back(condition);
+      }
+    }else {
+        expression_conditions.push_back(condition);
     }
   }
 }

@@ -47,7 +47,11 @@ public:
   DefaultConditionFilter();
   virtual ~DefaultConditionFilter();
 
-  RC init(const ConDesc &left, const ConDesc &right, AttrType left_attr_type, AttrType right_attr_type, CompOp comp_op);
+  RC init(const ConDesc &left, const ConDesc &right,
+                                AttrType left_attr_type,
+                                AttrType right_attr_type, CompOp comp_op,
+                                ExpressionNode *left_expression,
+                                ExpressionNode *right_expression);
   RC init(Table &table, const Condition &condition);
 
   virtual bool filter(const Record &rec) const;
@@ -66,6 +70,8 @@ public:
   }
 
 private:
+  ExpressionNode *left_expression_;
+  ExpressionNode *right_expression_;
   ConDesc  left_;
   ConDesc  right_;
   AttrType left_attr_type_ = UNDEFINED;

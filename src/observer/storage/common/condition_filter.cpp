@@ -37,17 +37,25 @@ DefaultConditionFilter::DefaultConditionFilter() {
 DefaultConditionFilter::~DefaultConditionFilter() {}
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right,
-                                AttrType left_attr_type, AttrType right_attr_type, CompOp comp_op) {
-  if (left_attr_type < CHARS || left_attr_type > TEXTS) {
-    LOG_ERROR("Invalid condition with unsupported left attribute type: %d",
-              left_attr_type);
-    return RC::INVALID_ARGUMENT;
+                                AttrType left_attr_type,
+                                AttrType right_attr_type, CompOp comp_op,
+                                ExpressionNode *left_expression,
+                                ExpressionNode *right_expression) {
+//  如果左边不是一个表达式则校验
+  if (!left_expression->left_expression->isExpression) {
+    if (left_attr_type < CHARS || left_attr_type > TEXTS) {
+      LOG_ERROR("Invalid condition with unsupported left attribute type: %d",
+                left_attr_type);
+      return RC::INVALID_ARGUMENT;
+    }
   }
-
-  if (right_attr_type < CHARS || right_attr_type > TEXTS) {
-    LOG_ERROR("Invalid condition with unsupported right attribute type: %d",
-              right_attr_type);
-    return RC::INVALID_ARGUMENT;
+// 如果右边不是一个表达式则校验
+  if (!right_expression->right_expression->isExpression) {
+    if (right_attr_type < CHARS || right_attr_type > TEXTS) {
+      LOG_ERROR("Invalid condition with unsupported right attribute type: %d",
+                right_attr_type);
+      return RC::INVALID_ARGUMENT;
+    }
   }
 
   if (comp_op < EQUAL_TO || comp_op >= NO_OP) {
@@ -61,6 +69,8 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right,
   left_attr_type_ = left_attr_type;
   right_attr_type_ = right_attr_type;
   comp_op_ = comp_op;
+  left_expression_ = left_expression;
+  right_expression_ = right_expression;
   return RC::SUCCESS;
 }
 
@@ -72,68 +82,70 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition) {
   AttrType type_left = UNDEFINED;
   AttrType type_right = UNDEFINED;
 
-  if (1 == condition.left_is_attr) {
-    left.is_attr = true;
-    const FieldMeta *field_left =
-        table_meta.field(condition.left_attr.attribute_name);
-    if (nullptr == field_left) {
-      LOG_WARN("No such field in condition. %s.%s", table.name(),
-               condition.left_attr.attribute_name);
-      return RC::SCHEMA_FIELD_MISSING;
+  if (!condition.left_expression->isExpression) {
+    if (1 == condition.left_is_attr) {
+      left.is_attr = true;
+      const FieldMeta *field_left =
+          table_meta.field(condition.left_attr.attribute_name);
+      if (nullptr == field_left) {
+        LOG_WARN("No such field in condition. %s.%s", table.name(),
+                 condition.left_attr.attribute_name);
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      left.attr_length = field_left->len();
+      left.attr_offset = field_left->offset();
+
+      left.value = nullptr;
+
+      type_left = field_left->type();
+    } else {
+      left.is_attr = false;
+      left.value = condition.left_value.data;  // 校验type 或者转换类型
+      type_left = condition.left_value.type;
+
+      // zt 新增 DATES 校验
+      if (type_left == DATES && *(int *)(left.value) == INT32_MIN) {
+        LOG_DEBUG("WHERE LEFT DATE TYPE INVAILD!");
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+
+      left.attr_length = 0;
+      left.attr_offset = 0;
     }
-
-    left.attr_length = field_left->len();
-    left.attr_offset = field_left->offset();
-
-    left.value = nullptr;
-
-    type_left = field_left->type();
-  } else {
-    left.is_attr = false;
-    left.value = condition.left_value.data;  // 校验type 或者转换类型
-    type_left = condition.left_value.type;
-
-    // zt 新增 DATES 校验
-    if (type_left == DATES && *(int *)(left.value) == INT32_MIN) {
-      LOG_DEBUG("WHERE LEFT DATE TYPE INVAILD!");
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-    }
-
-    left.attr_length = 0;
-    left.attr_offset = 0;
   }
+  if (!condition.right_expression->isExpression) {
+    if (1 == condition.right_is_attr) {
+      right.is_attr = true;
+      const FieldMeta *field_right =
+          table_meta.field(condition.right_attr.attribute_name);
+      if (nullptr == field_right) {
+        LOG_WARN("No such field in condition. %s.%s", table.name(),
+                 condition.right_attr.attribute_name);
+        return RC::SCHEMA_FIELD_MISSING;
+      }
 
-  if (1 == condition.right_is_attr) {
-    right.is_attr = true;
-    const FieldMeta *field_right =
-        table_meta.field(condition.right_attr.attribute_name);
-    if (nullptr == field_right) {
-      LOG_WARN("No such field in condition. %s.%s", table.name(),
-               condition.right_attr.attribute_name);
-      return RC::SCHEMA_FIELD_MISSING;
+      right.attr_length = field_right->len();
+      right.attr_offset = field_right->offset();
+      type_right = field_right->type();
+      right.value = nullptr;
+    } else {
+      // zt 新增 DATES 校验
+
+      right.is_attr = false;
+      right.value = condition.right_value.data;
+      type_right = condition.right_value.type;
+
+      // zt 新增 DATES 校验
+      if (type_right == DATES && *(int *)(right.value) == INT32_MIN) {
+        LOG_DEBUG("WHERE RIGHT DATE TYPE INVAILD!");
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+
+      right.attr_length = 0;
+      right.attr_offset = 0;
     }
-
-    right.attr_length = field_right->len();
-    right.attr_offset = field_right->offset();
-    type_right = field_right->type();
-    right.value = nullptr;
-  } else {
-    // zt 新增 DATES 校验
-
-    right.is_attr = false;
-    right.value = condition.right_value.data;
-    type_right = condition.right_value.type;
-
-    // zt 新增 DATES 校验
-    if (type_right == DATES && *(int *)(right.value) == INT32_MIN) {
-      LOG_DEBUG("WHERE RIGHT DATE TYPE INVAILD!");
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-    }
-
-    right.attr_length = 0;
-    right.attr_offset = 0;
   }
-
   // 校验和转换
   //  if (!field_type_compare_compatible_table[type_left][type_right]) {
   //    // 不能比较的两个字段， 要把信息传给客户端
@@ -141,43 +153,52 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition) {
   //  }
   // NOTE：这里没有实现不同类型的数据比较，比如整数跟浮点数之间的对比
   // 但是选手们还是要实现。这个功能在预选赛中会出现
-  if (type_left != type_right) {
-    if (type_left != NULLFIELD && type_right != NULLFIELD) {
-      if (!((type_left == AttrType::INTS && type_right == AttrType::FLOATS) || (type_left == AttrType::FLOATS && type_right == AttrType::INTS))) {
-        LOG_DEBUG("Type left not the same as type right");
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  if (!condition.left_expression->isExpression &&
+      !condition.right_expression->isExpression) {
+    if (type_left != type_right) {
+      if (type_left != NULLFIELD && type_right != NULLFIELD) {
+        if (!((type_left == AttrType::INTS && type_right == AttrType::FLOATS) ||
+              (type_left == AttrType::FLOATS &&
+               type_right == AttrType::INTS))) {
+          LOG_DEBUG("Type left not the same as type right");
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
       }
     }
   }
 
-  return init(left, right, type_left, type_right, condition.comp);
+  return init(left, right, type_left, type_right, condition.comp,
+              condition.left_expression, condition.right_expression);
 }
 
 bool DefaultConditionFilter::filter(const Record &rec) const {
   char *left_value = nullptr;
   char *right_value = nullptr;
-
-  if (left_.is_attr) {  // value
-    int8_t is_null = *(int8_t*)(rec.data + left_.attr_offset + left_.attr_length - 1);
-    if (is_null) {
-      left_value = nullptr;
+    if (left_.is_attr) {  // value
+      int8_t is_null =
+          *(int8_t *)(rec.data + left_.attr_offset + left_.attr_length - 1);
+      if (is_null) {
+        left_value = nullptr;
+      } else {
+        left_value = (char *)(rec.data + left_.attr_offset);
+      }
     } else {
-      left_value = (char *)(rec.data + left_.attr_offset);
+      left_value = (char *)left_.value;
     }
-  } else {
-    left_value = (char *)left_.value;
-  }
+  
 
-  if (right_.is_attr) {
-    int8_t is_null = *(int8_t*)(rec.data + right_.attr_offset + right_.attr_length - 1);
-    if (is_null) {
-      right_value = nullptr;
+    if (right_.is_attr) {
+      int8_t is_null =
+          *(int8_t *)(rec.data + right_.attr_offset + right_.attr_length - 1);
+      if (is_null) {
+        right_value = nullptr;
+      } else {
+        right_value = (char *)(rec.data + right_.attr_offset);
+      }
     } else {
-      right_value = (char *)(rec.data + right_.attr_offset);
+      right_value = (char *)right_.value;
     }
-  } else {
-    right_value = (char *)right_.value;
-  }
+  
 
   double cmp_result = 0;
   switch (left_attr_type_) {
