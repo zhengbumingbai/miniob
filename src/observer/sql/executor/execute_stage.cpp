@@ -630,6 +630,17 @@ RC aggr_execution(const Selects &selects, const char *db, TupleSet& tupleset_in,
             char* rel_comp;
             char* attr_comp;
             Table *table;
+            if (attr.is_constant) {
+                if (selects.relation_num > 1) {
+                    LOG_WARN("Aggr only recieve constant in single table.");
+                    return RC::SCHEMA_TABLE_NOT_EXIST; 
+                } else {
+                    table = DefaultHandler::get_default().find_table(db, selects.relations[0]);
+                    attrs.push_back(&attr);
+                    schema_add_aggr_field(&attr, table, attr.attribute_name, schema);
+                    continue;
+                }
+            }
             if (attr.relation_name == nullptr) {
                 if (selects.relation_num > 1) {
                     LOG_WARN("Aggr must have table name in multi table, field [%s]", attr.attribute_name);
@@ -1044,7 +1055,7 @@ void find_two_table_condition(const TupleSchema& left_table_schema,
                 cmp_result = left_in - right_in;
             }
             break;
-            case FLOATS: {
+            case FLOAT: {
                 if (NULLTYPE == left_attr_type || NULLTYPE == right_attr_type ) {
                     break;
                 }
