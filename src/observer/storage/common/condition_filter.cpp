@@ -42,7 +42,7 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right,
                                 ExpressionNode *left_expression,
                                 ExpressionNode *right_expression) {
 //  如果左边不是一个表达式则校验
-  if (!left_expression->left_expression->isExpression) {
+  if (!left_expression->isExpression) {
     if (left_attr_type < CHARS || left_attr_type > TEXTS) {
       LOG_ERROR("Invalid condition with unsupported left attribute type: %d",
                 left_attr_type);
@@ -50,7 +50,7 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right,
     }
   }
 // 如果右边不是一个表达式则校验
-  if (!right_expression->right_expression->isExpression) {
+  if (!right_expression->isExpression) {
     if (right_attr_type < CHARS || right_attr_type > TEXTS) {
       LOG_ERROR("Invalid condition with unsupported right attribute type: %d",
                 right_attr_type);
