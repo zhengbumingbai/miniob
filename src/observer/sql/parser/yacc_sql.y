@@ -524,7 +524,7 @@ select_attr:
 
 expression_list:
     /* Empty */
-    | COMMA add_sub_expression {
+    | COMMA add_sub_expression expression_list{
         RelAttr attr;
         relation_attr_init(&attr, NULL, NULL, $2);
         selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
