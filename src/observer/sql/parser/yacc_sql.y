@@ -510,28 +510,30 @@ select_attr:
         relation_attr_init(&attr, NULL, "*", NULL);
         selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
-  	| add_sub_expression aggr_list {
-        RelAttr attr;
-        relation_attr_init(&attr, NULL, NULL, $1);
-        selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-    | add_sub_expression expression_list {
-        RelAttr attr;
-        relation_attr_init(&attr, NULL, NULL, $1);
-        selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-    }
-    | aggr expression_list {
+    |
+  	attr attr_list {
 
     }
     ;
 
-expression_list:
-    /* Empty */
-    | COMMA add_sub_expression expression_list{
+attr:
+    add_sub_expression {
         RelAttr attr;
-        relation_attr_init(&attr, NULL, NULL, $2);
+        relation_attr_init(&attr, NULL, NULL, $1);
         selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
     }
+    | aggr {
+
+    }
+    ;
+
+attr_list: 
+    /* EMPTY */
+    | COMMA attr attr_list {
+
+    }
+    ;
+
 
 /* LR 分析法 忘得差不多了 百度的结果如下： */
 add_sub_expression:
@@ -602,53 +604,23 @@ atom_expression:
     }
 	;
 
-aggr_list:
-	COMMA aggr aggr_list
-	| COMMA aggr attr_list
-    ;
-
-
 aggr:
 	aggr_op LBRACE STAR RBRACE {
+            ExpressionNode node;
+            RelAttr rel_attr;
+            relation_attr_init(&rel_attr,NULL,"*",NULL);
+            expression_node_init(&node,0,NULL,0,NULL,0,&rel_attr,NULL,0 );
 			AggrAttr attr;
 			/*第二个参数refer to AggrType */
-			aggr_attr_init(&attr, $1, NULL, "*");
-			attr.is_constant = 0;
+			aggr_attr_init(&attr, $1, &node);
 			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
-	| aggr_op LBRACE ID RBRACE {
-			AggrAttr attr;
-			aggr_attr_init(&attr, $1, NULL, $3);
-			attr.is_constant = 0;
+	| aggr_op LBRACE atom_expression RBRACE{
+            ExpressionNode *node = $3;
+            AggrAttr attr;
+			/*第二个参数refer to AggrType */
+			aggr_attr_init(&attr, $1, node);
 			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| aggr_op LBRACE ID DOT ID RBRACE {
-			AggrAttr attr;
-			aggr_attr_init(&attr, $1, $3, $5);
-			attr.is_constant = 0;
-			selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| aggr_op LBRACE NUMBER RBRACE {
-		AggrAttr attr;
-		aggr_attr_init(&attr, $1, NULL, NULL);
-		value_init_integer(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| aggr_op LBRACE FLOAT RBRACE {
-		AggrAttr attr;
-		aggr_attr_init(&attr, $1, NULL, NULL);
-		value_init_float(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-	| aggr_op LBRACE SSS RBRACE {
-		AggrAttr attr;
-		aggr_attr_init(&attr, $1, NULL, NULL);
-		$3 = substr($3,1,strlen($3)-2);
-		value_init_string(&attr.constant_value, $3);
-		attr.is_constant = 1;
-		selects_append_aggr_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
     ;
 
@@ -659,37 +631,6 @@ aggr_op:
 	| AGGR_MIN { $$=4; }
 	;
 
-attr_list:
-    /* empty */
-    | COMMA ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, NULL, $2, NULL);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-     	  // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].relation_name = NULL;
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].attribute_name=$2;
-      }
-    | COMMA ID DOT ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $2, $4, NULL);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
-  	  }
-    | COMMA ID aggr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, NULL, $2, NULL);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-     	  // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].relation_name = NULL;
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].attribute_name=$2;
-      }
-    | COMMA ID DOT ID aggr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $2, $4, NULL);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
-  	  }
-  	;
 
 rel_list:
     /* empty */

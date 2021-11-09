@@ -248,7 +248,7 @@ void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode
 
 void expression_node_destory(ExpressionNode *node);
 
-void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op, const char *relation_name, const char *attribute_name);
+void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op, ExpressionNode *node);
 void aggr_attr_destory(AggrAttr *aggr_attr);
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name, ExpressionNode *node);

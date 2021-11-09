@@ -75,17 +75,28 @@ void expression_node_destory(ExpressionNode *node){
 }
 
 void aggr_attr_init(AggrAttr *aggr_attr, AggrType aggr_op,
-                    const char *relation_name, const char *attribute_name) {
+                    ExpressionNode *node) {
   aggr_attr->aggr_type = aggr_op;
-  if (relation_name != nullptr) {
-    aggr_attr->relation_name = strdup(relation_name);
-  } else {
-    aggr_attr->relation_name = nullptr;
-  }
-  if (attribute_name != nullptr) {
-    aggr_attr->attribute_name = strdup(attribute_name);
-  } else {
-    aggr_attr->attribute_name = nullptr;
+  if (node) {
+    if (!node->isExpression) {
+      if (node->isValue) {
+          aggr_attr->is_constant = 1;
+          aggr_attr->constant_value = *node->constant_value;
+      }
+      else{
+        aggr_attr->is_constant = 0;
+        if (node->relation_attr->relation_name != nullptr) {
+          aggr_attr->relation_name = strdup(node->relation_attr->relation_name);
+        } else {
+          aggr_attr->relation_name = nullptr;
+        }
+        if (node->relation_attr->attribute_name != nullptr) {
+          aggr_attr->attribute_name = strdup(node->relation_attr->attribute_name);
+        } else {
+          aggr_attr->attribute_name = nullptr;
+        }
+      }
+    }
   }
 }
 
