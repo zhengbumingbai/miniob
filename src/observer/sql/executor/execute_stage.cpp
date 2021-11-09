@@ -1143,6 +1143,7 @@ std::shared_ptr<TupleValue> caluate_result(
       float number = *(float *)(node->constant_value->data);
       FloatValue *temp = new FloatValue(number);
       std::shared_ptr<TupleValue> result(temp);
+      return result;
     } else {
       // 不是基本类型 暂时先不考虑处理
       return nullptr;
