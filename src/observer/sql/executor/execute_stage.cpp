@@ -253,8 +253,9 @@ bool check_expression_valid(const Selects &selects, const char *db,
              check_expression_valid(selects, db, node->right_expression,
                                     is_single_table);
     } else if (node->isValue) {
-      return node->constant_value->type == INTS ||
-             node->constant_value->type == FLOATS;
+    //   return node->constant_value->type == INTS ||
+    //          node->constant_value->type == FLOATS;
+        return true;
     } else {
       char *relation_name = node->relation_attr->relation_name;
       char *attribute_name = node->relation_attr->attribute_name;
