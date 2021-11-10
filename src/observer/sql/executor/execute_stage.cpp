@@ -68,7 +68,7 @@ void join_multiple_table(std::vector<TupleSet> &tuple_sets,
                          const std::vector<Condition> &conditions,
                          TupleSet &joined_table);
 
-std::shared_ptr<TupleValue> caluate_result(
+std::shared_ptr<TupleValue> calcuate_result(
     ExpressionNode *node, const TupleSchema &joined_table_schema,
     const Tuple &tuple);
 
@@ -674,9 +674,9 @@ bool is_match_tuple(const std::vector<Condition> &expression_conditions,
     ExpressionNode *right_node = expression_conditions[i].right_expression;
 
     std::shared_ptr<TupleValue> left_value =
-        caluate_result(left_node, joined_tuple_set_schema, tuple);
+        calcuate_result(left_node, joined_tuple_set_schema, tuple);
     std::shared_ptr<TupleValue> right_value =
-        caluate_result(right_node, joined_tuple_set_schema, tuple);
+        calcuate_result(right_node, joined_tuple_set_schema, tuple);
 
     if (left_value != nullptr && right_value != nullptr) {
       float f1, f2;
@@ -1076,27 +1076,41 @@ const std::shared_ptr<TupleValue> get_value_from_tuple(
   }
 }
 
-std::shared_ptr<TupleValue> caluate_result(
+std::shared_ptr<TupleValue> calcuate_result(
     ExpressionNode *node, const TupleSchema &joined_table_schema,
     const Tuple &tuple) {
   // 如果是表达式则递归调用
+  int sign;
+  if(node->sign==SUB) {
+      sign = -1;
+  }else {
+      sign = 1;
+  }
   if (node->isExpression) {
     std::shared_ptr<TupleValue> left =
-        caluate_result(node->left_expression, joined_table_schema, tuple);
+        calcuate_result(node->left_expression, joined_table_schema, tuple);
 
     std::shared_ptr<TupleValue> right =
-        caluate_result(node->right_expression, joined_table_schema, tuple);
+        calcuate_result(node->right_expression, joined_table_schema, tuple);
 
     int i1, i2;
     float f1, f2;
 
     // 统一当成浮点数处理试试
+    if(left == nullptr) {
+        return nullptr;
+    }
+    
     if ((*left).type() == INT) {
       f1 = std::dynamic_pointer_cast<IntValue>(left)->value();
     } else if ((*left).type() == FLOAT) {
       f1 = std::dynamic_pointer_cast<FloatValue>(left)->value();
     } else {
       return nullptr;
+    }
+
+    if(right == nullptr) {
+        return nullptr;
     }
 
     if ((*right).type() == INT) {
@@ -1110,19 +1124,20 @@ std::shared_ptr<TupleValue> caluate_result(
     float number = 0;
     switch (node->op) {
       case ADD:
-        number = f1 + f2;
+        number = sign * (f1 + f2);
         break;
       case SUB:
-        number = f1 - f2;
+        number = sign *(f1 - f2);
         break;
       case MUL:
-        number = f1 * f2;
+        number = sign *(f1 * f2);
         break;
       case DIV:
-        number = f1 / f2;
         if (f2 == 0) {
           return nullptr;
         }
+        number = sign *(f1 / f2);
+        
         break;
       default:
         break;
@@ -1318,9 +1333,9 @@ void select_columns(const TupleSet &joined_table, const Selects &selects,
       for (int j = 0; j < selects.attr_num; j++) {
         ExpressionNode *node = selects.attributes[j].node;
         std::shared_ptr<TupleValue> result =
-            caluate_result(node, joined_table_schema, tuple);
+            calcuate_result(node, joined_table_schema, tuple);
         if (result != nullptr) {
-          select_tuple.add(caluate_result(node, joined_table_schema, tuple));
+          select_tuple.add(calcuate_result(node, joined_table_schema, tuple));
         }
       }
       joined_table_selected.add(std::move(select_tuple));

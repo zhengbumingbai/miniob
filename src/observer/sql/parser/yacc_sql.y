@@ -545,11 +545,10 @@ attr_list:
     ;
 
 
-/* LR 分析法 忘得差不多了 百度的结果如下： */
 add_sub_expression:
     add_sub_expression add_or_sub mul_div_expression {
         $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
-        expression_node_init($$, 1, $1, $2, $3, 0, NULL, NULL, 0);
+        expression_node_init($$, 1, $1, $2, $3, 0, NULL, NULL, 0, ADD);
     }
     | mul_div_expression {
         $$ = $1;
@@ -568,7 +567,7 @@ add_or_sub:
 mul_div_expression:
     mul_div_expression mul_or_div atom_expression {
         $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
-        expression_node_init($$, 1, $1, $2, $3, 0, NULL, NULL, 0);
+        expression_node_init($$, 1, $1, $2, $3, 0, NULL, NULL, 0, ADD);
     } 
     | atom_expression {
         $$ = $1;
@@ -587,9 +586,10 @@ mul_or_div:
     ;
 
 atom_expression:
-    LBRACE add_sub_expression RBRACE{
-        $$ = $2;
+    sign LBRACE add_sub_expression RBRACE{
+        $$ = $3;
         $$->isBracket = 1;
+        $$->sign = $1;
     }
     |
 	ID {
@@ -597,7 +597,7 @@ atom_expression:
         $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
         RelAttr *attr = ( RelAttr *)malloc(sizeof( RelAttr));;
         relation_attr_init(attr, NULL, $1, NULL);
-        expression_node_init($$, 0, NULL, 0, NULL, 0, attr, NULL, 0);
+        expression_node_init($$, 0, NULL, 0, NULL, 0, attr, NULL, 0, ADD);
 	}
     |
     ID DOT ID {
@@ -605,12 +605,12 @@ atom_expression:
         $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
         RelAttr *attr = ( RelAttr *)malloc(sizeof( RelAttr));;
         relation_attr_init(attr, $1, $3, NULL);
-        expression_node_init($$, 0, NULL, 0, NULL, 0, attr, NULL, 0);
+        expression_node_init($$, 0, NULL, 0, NULL, 0, attr, NULL, 0, ADD );
 	}
     | value {
         $$=( ExpressionNode *)malloc(sizeof( ExpressionNode));
         Value *value_ = &CONTEXT->values[CONTEXT->value_length - 1];
-        expression_node_init($$, 0, NULL, 0, NULL, 1, NULL, value_, 0);
+        expression_node_init($$, 0, NULL, 0, NULL, 1, NULL, value_, 0, ADD);
     }
 	;
 
@@ -619,7 +619,7 @@ aggr:
             ExpressionNode node;
             RelAttr rel_attr;
             relation_attr_init(&rel_attr,NULL,"*",NULL);
-            expression_node_init(&node,0,NULL,0,NULL,0,&rel_attr,NULL,0 );
+            expression_node_init(&node,0,NULL,0,NULL,0,&rel_attr,NULL,0 , ADD);
 			AggrAttr attr;
 			/*第二个参数refer to AggrType */
 			aggr_attr_init(&attr, $1, &node);

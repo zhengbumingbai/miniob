@@ -25,12 +25,12 @@ extern "C" {
 #endif  // __cplusplus
 
 
-void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value,int isBracket) {
+void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value,int isBracket,OpType sign) {
     node->isExpression =isExpression;
     node->left_expression = left_expression;
     node->right_expression = right_expression;
     node->op = op;
-    
+    node->sign = sign;
     node->isValue = isValue;
     if(constant_value) { 
         node->constant_value = (Value *)malloc(sizeof(Value));

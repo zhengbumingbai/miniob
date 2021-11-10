@@ -239,12 +239,13 @@ typedef struct _ExpressionNode
     int isBracket;
     RelAttr *relation_attr;
     Value *constant_value;
+    OpType sign;
 }ExpressionNode;
 
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
-void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value,int isBracket);
+void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value,int isBracket, OpType sign);
 
 void expression_node_destory(ExpressionNode *node);
 
