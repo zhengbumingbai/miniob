@@ -675,8 +675,11 @@ bool is_match_tuple(const std::vector<Condition> &expression_conditions,
 
     std::shared_ptr<TupleValue> left_value =
         calculate_result(left_node, joined_tuple_set_schema, tuple);
+    if(left_value == nullptr) return false;
+
     std::shared_ptr<TupleValue> right_value =
         calculate_result(right_node, joined_tuple_set_schema, tuple);
+    if(right_value == nullptr) return false;
 
     if (left_value != nullptr && right_value != nullptr) {
       float f1, f2;
