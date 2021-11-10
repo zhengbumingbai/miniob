@@ -93,6 +93,22 @@ private:
   std::string field_name_;
 };
 
+// 存储表达式模式信息
+class ExpressionField {
+public:
+    ExpressionField(const char *expression_string) :
+          expression_string_(expression_string) {
+  }
+
+  const char *expression_string() const {
+    return expression_string_.c_str();
+  }
+
+  std::string to_string() const;
+private:
+    std::string expression_string_;
+};
+
 class AggrField {
 public:
   AggrField(AggrType aggr_type, AttrType type, const char *table_name, Table* table,  const char *field_name, const Value* constant_value) :
@@ -151,6 +167,8 @@ public:
 
   void add_aggr(AggrType aggr_type, AttrType type, const char *table_name, Table* table, const char *field_name, const Value* constant_value);
   void add_aggr_if_not_exists(AggrType aggr_type, AttrType type, const char *table_name, const char *field_name);
+
+  void add_expression_field(std::string expression_string);
   // void merge(const TupleSchema &other);
   void append(const TupleSchema &other);
 
@@ -160,6 +178,10 @@ public:
 
   const std::vector<AggrField> &aggr_fields() const {
     return aggr_fields_;
+  }
+
+  const std::vector<ExpressionField> &expression_fields() const {
+    return expression_fields_;
   }
 
   const TupleField &field(int index) const {
@@ -178,6 +200,7 @@ public:
 private:
   std::vector<TupleField> fields_;
   std::vector<AggrField> aggr_fields_;
+  std::vector<ExpressionField> expression_fields_;
 };
 
 class TupleSet {

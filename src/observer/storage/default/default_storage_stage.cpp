@@ -366,7 +366,7 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
             }
             else
             {
-                value_init_integer(&record_values[i], int_value);
+                value_init_integer(&record_values[i], int_value, ADD);
             }
         }
 
@@ -386,7 +386,7 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
             }
             else
             {
-                value_init_float(&record_values[i], float_value);
+                value_init_float(&record_values[i], float_value, ADD);
             }
         }
         break;

@@ -69,6 +69,10 @@ std::string TupleField::to_string() const {
   return std::string(table_name_) + "." + field_name_ + std::to_string(type_);
 }
 
+std::string ExpressionField::to_string() const {
+  return std::string(expression_string_);
+}
+
 std::string AggrField::to_string() const {
   if (aggr_type_ == AggrType::AGGR_UNDEFINED) {
     return "AggrTypeError";
@@ -122,6 +126,11 @@ void TupleSchema::add_if_not_exists(AttrType type, const char *table_name,
   add(type, table_name, field_name);
 }
 
+void TupleSchema::add_expression_field(std::string expression_string) {
+    ExpressionField exp(expression_string.c_str());
+    expression_fields_.push_back(exp);
+}
+
 void TupleSchema::add_aggr(AggrType aggr_type, AttrType type, const char *table_name, Table* table, const char *field_name, const Value* constant_value) {
   aggr_fields_.emplace_back(aggr_type, type, table_name, table, field_name, constant_value);
 }
@@ -152,16 +161,24 @@ int TupleSchema::index_of_field(const char *table_name,
   const int size = fields_.size();
   for (int i = 0; i < size; i++) {
     const TupleField &field = fields_[i];
-    if (0 == strcmp(field.table_name(), table_name) &&
+    if(table_name != nullptr) {
+        if (0 == strcmp(field.table_name(), table_name) &&
         0 == strcmp(field.field_name(), field_name)) {
       return i;
+        }
+    }else {
+        if (
+        0 == strcmp(field.field_name(), field_name)) {
+      return i;
+        }
     }
+    
   }
   return -1;
 }
 
 void TupleSchema::print(std::ostream &os, bool is_single_table) const {
-  if (fields_.empty() && aggr_fields_.empty()) {
+  if (fields_.empty() && aggr_fields_.empty() && expression_fields_.empty()) {
     os << "No schema";
     return;
   }
@@ -342,6 +359,16 @@ void TupleSchema::print(std::ostream &os, bool is_single_table) const {
     }
     os << aggr_all_field_name << std::endl;
   }
+
+  if(expression_fields_.size() > 0) {
+      for (int i = 0; i < expression_fields_.size() - 1; i++)
+      {
+          os << expression_fields_[i].to_string();
+          os << " | ";
+      }
+      os << expression_fields_.back().to_string();
+      os << std::endl;
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -372,7 +399,7 @@ void TupleSet::clear() {
 }
 
 void TupleSet::print(std::ostream &os, bool is_single_table) const {
-  if (schema_.fields().empty() && schema_.aggr_fields().empty()) {
+  if (schema_.fields().empty() && schema_.aggr_fields().empty() && schema_.expression_fields().empty()) {
     LOG_WARN("Got empty schema");
     return;
   }

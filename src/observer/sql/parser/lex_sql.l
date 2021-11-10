@@ -25,6 +25,7 @@ extern double atof();
 %option bison-bridge
 %option reentrant
 
+
 WHITE_SAPCE      [\ \t\b\f]
 DIGIT            [0-9]+
 
@@ -38,8 +39,12 @@ QUOTE            [\'\"]
 {WHITE_SAPCE}                           // ignore whitespace
 \n																						 ;
 
-[\-]?{DIGIT}+					                   yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
-[\-]?{DIGIT}+{DOT}{DIGIT}+				       yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+"+"										 RETURN_TOKEN(ADD_OP);
+"-"										 RETURN_TOKEN(SUB_OP);
+"/"									 RETURN_TOKEN(DIV_OP);
+
+{DIGIT}+					                   yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
+{DIGIT}+{DOT}{DIGIT}+				       yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
 {QUOTE}{DIGIT}+[\-]{DIGIT}+[\-]{DIGIT}{QUOTE}                yylval->string=strdup(yytext); RETURN_TOKEN(DATE);
 
 ";"                 	 				 RETURN_TOKEN(SEMICOLON);
@@ -104,6 +109,9 @@ QUOTE            [\'\"]
 "<"                                      RETURN_TOKEN(LT);
 ">="                                     RETURN_TOKEN(GE);
 ">"                                      RETURN_TOKEN(GT);
+
+
+
 {QUOTE}[\40\42\47A-Za-z0-9_/\.\-]*{QUOTE}	     yylval->string=strdup(yytext); RETURN_TOKEN(SSS);
 
 .						                             printf("Unknown character [%c]\n",yytext[0]); return yytext[0];
