@@ -14,22 +14,24 @@ See the Mulan PSL v2 for more details. */
 #ifndef __OBSERVER_STORAGE_COMMON_PAGE_MANAGER_H_
 #define __OBSERVER_STORAGE_COMMON_PAGE_MANAGER_H_
 
+#include <cstdint>
 #include <fcntl.h>
-#include <stdio.h>
+#include <cstdio>
 #include <sys/types.h>
-#include <string.h>
+#include <cstring>
 #include <sys/stat.h>
-#include <time.h>
+#include <ctime>
 
 #include "common/log/log.h"
 #include <list>
 #include <vector>
-// #include <unordered_map>
+#include <unordered_map>
 
 #include "rc.h"
 
 typedef int PageNum;
 
+using namespace common;
 //
 #define BP_INVALID_PAGE_NUM (-1)
 #define BP_PAGE_SIZE (1 << 12)
@@ -52,7 +54,7 @@ typedef struct {
 typedef struct {
   bool dirty;
   unsigned int pin_count;
-  unsigned long acc_time;
+  // unsigned long acc_time;
   int file_desc;
   Page page;
 } Frame;
@@ -78,36 +80,71 @@ public:
   BPFileSubHeader *file_sub_header;
 } ;
 
+struct pair_hash
+{
+  template <class T1, class T2>
+  std::size_t operator() (const std::pair<T1, T2> &pair) const {
+    return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
+  }
+};
+
 class BPManager {
 public:
   BPManager(int size = BP_BUFFER_SIZE) {
-    this->size = size;
-    frame = new Frame[size];
-    allocated = new bool[size];
+    this->size_ = size;
+    frame_ = new Frame[size];
+    allocated_ = new bool[size];
     for (int i = 0; i < size; i++) {
-      allocated[i] = false;
-      frame[i].pin_count = 0;
-      frame_list.push_back(&frame[i]);
+      allocated_[i] = false;
+      frame_[i].pin_count = 0;
+      replacer_list.push_back(&frame_[i]);
     }
   }
 
   ~BPManager() {
-    delete[] frame;
-    delete[] allocated;
-    size = 0;
-    frame = nullptr;
-    allocated = nullptr;
+    delete[] frame_;
+    delete[] allocated_;
+    size_ = 0;
+    frame_ = nullptr;
+    allocated_ = nullptr;
   }
 
-  Frame *alloc() {
-    Frame *frame = frame_list.back();
-    if (frame->pin_count != 0)
-    {
-        return nullptr;
+  RC alloc(int file_desc, PageNum page_num, Frame*& frame) {
+    if (replacer_list.size() == 0) {
+      return RC::BUFFERPOOL_NOBUF;
     }
-    frame_list.push_front(frame);
-    frame_list.pop_back();
-    return frame;
+
+    frame = replacer_list.front();
+    uint64_t frame_pos = frame - frame_; 
+    replacer_list.pop_front();
+    
+    if (frame->dirty) {
+      RC rc = flush_block(frame);
+      if (rc != RC::SUCCESS) {
+        LOG_ERROR("Failed to flush block of %d for %d.", frame_pos, frame->file_desc);
+        return rc;
+      }
+    }
+
+    memset(frame, 0, sizeof(Frame));
+    
+    auto pair_rm_iter = frame_page_map.find(frame);
+    if (pair_rm_iter != frame_page_map.end()) {
+      auto pair_rm = pair_rm_iter->second;
+      frame_rep_pos_map.erase(frame);
+      frame_page_map.erase(pair_rm_iter);
+      page_frame_pos_map.erase(pair_rm);
+    }
+    
+    auto pair_new = std::pair<int, PageNum>(file_desc, page_num);
+    page_frame_pos_map[pair_new] = frame_pos;
+    frame_page_map[frame] = pair_new;
+
+    frame->pin_count = 1;
+    frame->file_desc = file_desc;
+    frame->page.page_num = page_num;
+    allocated_[frame_pos] = true;
+    return RC::SUCCESS;
 
     // for (auto &it : frame_list)
     // {
@@ -117,29 +154,152 @@ public:
     // return nullptr; // TODO for test
   }
 
-  Frame *get(int file_desc, PageNum page_num) {
-    for(auto it=frame_list.begin();it!= frame_list.end();it++){
-        if((*it)->file_desc==file_desc&&(*it)->page.page_num==page_num){
-            frame_list.erase(it);
-            frame_list.push_front(*it);
-            return *it;
-        }
+  RC get(int file_desc, PageNum page_num, Frame*& frame_get) {
+    auto pair_seek = std::pair<int, PageNum>(file_desc, page_num);
+    
+    auto frame_pos_iter = page_frame_pos_map.find(pair_seek);
+    if (frame_pos_iter == page_frame_pos_map.end()) {
+      return RC::BUFFERPOOL_EOF;
     }
+    uint64_t frame_pos = frame_pos_iter->second;
+    frame_get = frame_ + frame_pos;
 
-    return nullptr; // TODO for test
+    RC rc = pin(frame_get);
+    return rc;
   }
 
-  Frame *getFrame() { return frame; }
+  RC unpin(Frame* frame) {
+    if (frame->pin_count != 0) {
+      frame->pin_count--;
+    }
+    if (frame->pin_count == 0) {
+      // 放到 replacer_list 中
+      replacer_list.push_back(frame);
+      frame_rep_pos_map[frame] = --replacer_list.end();
+    }
+    return RC::SUCCESS;
+  }
 
-  bool *getAllocated() { return allocated; }
+  RC pin(Frame* frame) {
+    if (frame->pin_count == 0) {
+      // 从 replacer_list 里面拿出来。（如果拿不到出错否？）
+      auto rep_pos_iter = frame_rep_pos_map.find(frame);
+      if (rep_pos_iter != frame_rep_pos_map.end()) {
+        auto rep_pos = rep_pos_iter->second;
+        replacer_list.erase(rep_pos);
+        frame_rep_pos_map.erase(rep_pos_iter);
+      } else {
+        LOG_DEBUG("Frame must in replacer list when pin_count == 0");
+      }
+    }
+    frame->pin_count++;
+    return RC::SUCCESS;
+  }
 
-public:
-  int size;
-  Frame * frame = nullptr;
-  bool *allocated = nullptr;
-  std::list<Frame *> frame_list;
+  RC flush_block(Frame *frame)
+  {
+    // The better way is use mmap the block into memory,
+    // so it is easier to flush data to file.
+    s64_t offset = ((s64_t)frame->page.page_num) * sizeof(Page);
+    if (lseek(frame->file_desc, offset, SEEK_SET) == offset - 1) {
+      LOG_ERROR("Failed to flush page %lld of %d due to failed to seek %s.", offset, frame->file_desc, strerror(errno));
+      return RC::IOERR_SEEK;
+    }
+
+    if (write(frame->file_desc, &(frame->page), sizeof(Page)) != sizeof(Page)) {
+      LOG_ERROR("Failed to flush page %lld of %d due to %s.", offset, frame->file_desc, strerror(errno));
+      return RC::IOERR_WRITE;
+    }
+    frame->dirty = false;
+    LOG_DEBUG("Flush block. file desc=%d, page num=%d", frame->file_desc, frame->page.page_num);
+
+    return RC::SUCCESS;
+  }
+
+  RC evict_frame(Frame* frame) {
+    if (frame->pin_count != 0) {
+      LOG_WARN("Begin to free page %d of %d, but it's pinned.", frame->page.page_num, frame->file_desc);
+      return RC::BUFFERPOOL_PAGE_PINNED;
+    }
+    
+    // if (frame->dirty) {
+    //   RC rc = flush_block(frame);
+    //   if (rc != RC::SUCCESS) {
+    //     LOG_WARN("Failed to flush block %d of %d during dispose block.", frame->page.page_num, frame->file_desc);
+    //     return rc;
+    //   }
+    // }
+
+    replacer_list.push_back(frame);
+    auto frame_page_iter = frame_page_map.find(frame);
+    if (frame_page_iter != frame_page_map.end()) {
+      auto page_pair = frame_page_iter->second;
+      page_frame_pos_map.erase(page_pair);
+      frame_page_map.erase(frame_page_iter);
+    }
+    
+    frame->dirty = false;
+    uint64_t pos = frame - frame_;
+    allocated_[pos] = false;
+    LOG_DEBUG("evict block frame =%p", frame);
+    return RC::SUCCESS;
+  }
+
+  RC force_evict_frame(Frame* frame) {
+    if (frame->dirty) {
+      RC rc = flush_block(frame);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("Failed to flush block %d of %d during dispose block.", frame->page.page_num, frame->file_desc);
+        return rc;
+      }
+    }
+    
+    replacer_list.push_back(frame);
+    auto frame_page_iter = frame_page_map.find(frame);
+    if (frame_page_iter != frame_page_map.end()) {
+      auto page_pair = frame_page_iter->second;
+      page_frame_pos_map.erase(page_pair);
+      frame_page_map.erase(frame_page_iter);
+    }
+
+    frame->dirty = false;
+    uint64_t pos = frame - frame_;
+    allocated_[pos] = false;
+    LOG_DEBUG("force evict block frame =%p", frame);
+    return RC::SUCCESS;
+  }
+
+  RC force_evict_all_frames_from_file(BPFileHandle *file_handle) {
+    for (int i = 0; i < BP_BUFFER_SIZE; i++) {
+      if (!allocated_[i])
+        continue;
+
+      if (frame_[i].file_desc != file_handle->file_desc)
+        continue;
+
+      RC rc = force_evict_frame(&frame_[i]);
+      if (rc != RC::SUCCESS) {
+        LOG_ERROR("Failed to flush all pages' of %s.", file_handle->file_name);
+        return rc;
+      }
+      allocated_[i] = false;
+    }
+    return RC::SUCCESS;
+  }
+
+  Frame *getFrame() { return frame_; }
+
+  bool *getAllocated() { return allocated_; }
+
+private:
+  int size_;
+  Frame * frame_ = nullptr;
+  bool *allocated_ = nullptr;
+  std::list<Frame *> replacer_list;
   // LRU后面再做
-  // std::unordered_map<std::pair<int, PageNum>, Frame*> frame_map;
+  std::unordered_map<std::pair<int, PageNum>, uint64_t, pair_hash> page_frame_pos_map;
+  std::unordered_map<Frame*, std::list<Frame *>::iterator> frame_rep_pos_map;
+  std::unordered_map<Frame*, std::pair<int, PageNum>> frame_page_map;
 };
 
 class DiskBufferPool {
@@ -217,7 +377,7 @@ public:
   RC flush_all_pages(int file_id);
 
 protected:
-  RC allocate_block(Frame **buf);
+  RC allocate_block(Frame **buf, int file_desc, PageNum page_num);
   RC dispose_block(Frame *buf);
 
   /**
@@ -230,7 +390,6 @@ protected:
   RC check_file_id(int file_id);
   RC check_page_num(PageNum page_num, BPFileHandle *file_handle);
   RC load_page(PageNum page_num, BPFileHandle *file_handle, Frame *frame);
-  RC flush_block(Frame *frame);
 
 private:
   BPManager bp_manager_;
