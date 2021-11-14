@@ -350,8 +350,8 @@ static void yynoreturn yy_fatal_error ( const char* msg , yyscan_t yyscanner );
 	yyg->yy_hold_char = *yy_cp; \
 	*yy_cp = '\0'; \
 	yyg->yy_c_buf_p = yy_cp;
-#define YY_NUM_RULES 71
-#define YY_END_OF_BUFFER 72
+#define YY_NUM_RULES 72
+#define YY_END_OF_BUFFER 73
 /* This struct is not used in this scanner,
    but its presence is necessary. */
 struct yy_trans_info
@@ -361,29 +361,29 @@ struct yy_trans_info
 	};
 static const flex_int16_t yy_accept[208] =
     {   0,
-        0,    0,    0,    0,   72,   70,    1,    2,   70,   60,
-       61,   11,    3,   62,    4,   10,    5,    6,    9,   66,
-       63,   68,   59,   59,   59,   59,   59,   59,   59,   59,
-       59,   59,   59,   59,   59,   59,   59,   59,   59,   59,
-       59,   59,   59,   71,    0,   69,    0,    0,    6,   64,
-       65,   67,   59,   59,   59,   59,   59,   59,   56,   59,
-       59,   59,   59,   59,   59,   59,   59,   59,   59,   59,
-       59,   53,   59,   59,   59,   59,   59,   59,   21,   59,
-       59,   59,   59,   59,   59,   59,   59,   59,   59,   59,
-        0,    7,   27,   15,   48,   59,   59,   59,   59,   59,
+        0,    0,    0,    0,   73,   71,    1,    2,   71,   61,
+       62,   11,    3,   63,    4,   10,    5,    6,    9,   67,
+       64,   69,   60,   60,   60,   60,   60,   60,   60,   60,
+       60,   60,   60,   60,   60,   60,   60,   60,   60,   60,
+       60,   60,   60,   72,    0,   70,    0,    0,    6,   65,
+       66,   68,   60,   60,   60,   60,   60,   60,   56,   60,
+       60,   60,   60,   60,   60,   60,   60,   60,   60,   60,
+       59,   53,   60,   60,   60,   60,   60,   60,   21,   60,
+       60,   60,   60,   60,   60,   60,   60,   60,   60,   60,
+        0,    7,   27,   15,   48,   60,   60,   60,   60,   60,
 
-       59,   59,   59,   59,   59,   59,   59,   59,   59,   59,
-       59,   59,   59,   37,   59,   59,   46,   47,   51,   59,
-       59,   59,   59,   33,   59,   59,   59,   59,   59,   59,
-       59,   59,    0,   59,   38,   59,   59,   59,   43,   40,
-       59,   14,   17,   12,   59,   25,   59,   13,   59,   59,
-       59,   59,   29,   58,   42,   50,   59,   59,   59,   22,
-       23,   59,   41,   59,   59,   59,   59,    0,   34,   59,
-       45,   59,   59,   39,   55,   20,   59,   57,   59,   59,
-       54,   59,   59,   18,   59,   59,   59,   26,    0,   35,
-       16,   31,   44,   28,   59,   59,   24,   19,   49,   32,
+       60,   60,   60,   60,   60,   60,   60,   60,   60,   60,
+       60,   60,   60,   37,   60,   60,   46,   47,   51,   60,
+       60,   60,   60,   33,   60,   60,   60,   60,   60,   60,
+       60,   60,    0,   60,   38,   60,   60,   60,   43,   40,
+       60,   14,   17,   12,   60,   25,   60,   13,   60,   60,
+       60,   60,   29,   58,   42,   50,   60,   60,   60,   22,
+       23,   60,   41,   60,   60,   60,   60,    0,   34,   60,
+       45,   60,   60,   39,   55,   20,   60,   57,   60,   60,
+       54,   60,   60,   18,   60,   60,   60,   26,    0,   35,
+       16,   31,   44,   28,   60,   60,   24,   19,   49,   32,
 
-       30,    8,   59,   59,   52,   36,    0
+       30,    8,   60,   60,   52,   36,    0
     } ;
 
 static const YY_CHAR yy_ec[256] =
@@ -1246,70 +1246,75 @@ RETURN_TOKEN(JOIN);	// add by cmk
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 101 "lex_sql.l"
-yylval->string=strdup(yytext); RETURN_TOKEN(ID);
+#line 100 "lex_sql.l"
+RETURN_TOKEN(IN);	// add by cmk
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
 #line 102 "lex_sql.l"
-RETURN_TOKEN(LBRACE);
+yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
 #line 103 "lex_sql.l"
-RETURN_TOKEN(RBRACE);
+RETURN_TOKEN(LBRACE);
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 105 "lex_sql.l"
-RETURN_TOKEN(COMMA);
+#line 104 "lex_sql.l"
+RETURN_TOKEN(RBRACE);
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
 #line 106 "lex_sql.l"
-RETURN_TOKEN(EQ);
+RETURN_TOKEN(COMMA);
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
 #line 107 "lex_sql.l"
-RETURN_TOKEN(LE);
+RETURN_TOKEN(EQ);
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
 #line 108 "lex_sql.l"
-RETURN_TOKEN(NE);
+RETURN_TOKEN(LE);
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
 #line 109 "lex_sql.l"
-RETURN_TOKEN(LT);
+RETURN_TOKEN(NE);
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
 #line 110 "lex_sql.l"
-RETURN_TOKEN(GE);
+RETURN_TOKEN(LT);
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
 #line 111 "lex_sql.l"
-RETURN_TOKEN(GT);
+RETURN_TOKEN(GE);
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 115 "lex_sql.l"
-yylval->string=strdup(yytext); RETURN_TOKEN(SSS);
+#line 112 "lex_sql.l"
+RETURN_TOKEN(GT);
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 117 "lex_sql.l"
-printf("Unknown character [%c]\n",yytext[0]); return yytext[0];
+#line 116 "lex_sql.l"
+yylval->string=strdup(yytext); RETURN_TOKEN(SSS);
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
 #line 118 "lex_sql.l"
+printf("Unknown character [%c]\n",yytext[0]); return yytext[0];
+	YY_BREAK
+case 72:
+YY_RULE_SETUP
+#line 119 "lex_sql.l"
 ECHO;
 	YY_BREAK
-#line 1313 "lex.yy.c"
+#line 1318 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(STR):
 	yyterminate();
@@ -2491,7 +2496,7 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 118 "lex_sql.l"
+#line 119 "lex_sql.l"
 
 
 void scan_string(const char *str, yyscan_t scanner) {

@@ -23,8 +23,30 @@ RC parse(char *st, Query *sqln);
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
+void swap_number(size_t left, size_t right)
+{
+    size_t tmp = left;
+    left = right;
+    right = tmp;
+}
 
+void swap_conditions(Condition* left, Condition* right, int length)
+{
+    Condition tmp[length];
+    memcpy(tmp, left, length);
+    memcpy(left, right, length);
+    memcpy(right, tmp, length);
+}
 
+void swap_queries(union Queries* left, union Queries* right)
+{
+    size_t length = sizeof(union Queries);
+    union Queries tmp;
+    memcpy(&tmp, left, length);
+    memcpy(left, right, length);
+    memcpy(right, &tmp, length);
+
+}
 void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value,int isBracket,OpType sign) {
     node->isExpression =isExpression;
     node->left_expression = left_expression;
@@ -347,11 +369,15 @@ void value_destroy(Value *value) {
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr,
                     RelAttr *left_attr, Value *left_value, int right_is_attr,
-                    RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right) {
+                    RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right, SimpleSubSelect *sub_select) {
   condition->comp = comp;
-  
+
+  condition->sub_select = sub_select;
+
   condition->left_expression = left;
   condition->right_expression = right;
+  assert(left != NULL);
+  if(right != NULL){
     if (!left->isExpression && !right->isExpression)
     {
         if(left->isValue) {
@@ -370,6 +396,7 @@ void condition_init(Condition *condition, CompOp comp, int left_is_attr,
             condition->right_attr = *(right->relation_attr);
         }
     }
+  }
 }
 
 void condition_destroy(Condition *condition) {
@@ -670,6 +697,8 @@ void load_data_destroy(LoadData *load_data) {
 
 void query_init(Query *query) {
   query->flag = SCF_ERROR;
+  query->exisit_sub_select = 0;
+  query->sub_sstr = NULL;
   memset(&query->sstr, 0, sizeof(query->sstr));
 }
 
@@ -688,6 +717,7 @@ void query_reset(Query *query) {
   switch (query->flag) {
     case SCF_SELECT: {
       selects_destroy(&query->sstr.selection);
+      selects_destroy(&query->sub_sstr->selection);
     } break;
     case SCF_INSERT: {
       inserts_destroy(&query->sstr.insertion);
