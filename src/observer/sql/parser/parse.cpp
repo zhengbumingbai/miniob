@@ -23,11 +23,18 @@ RC parse(char *st, Query *sqln);
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
-void swap_number(size_t left, size_t right)
+void swap_compOp(CompOp* left, CompOp* right)
 {
-    size_t tmp = left;
-    left = right;
-    right = tmp;
+  CompOp tmp = *left;
+  *left = *right;
+  *right = tmp;
+}
+
+void swap_number(size_t* left, size_t* right)
+{
+    size_t tmp = *left;
+    *left = *right;
+    *right = tmp;
 }
 
 void swap_conditions(Condition* left, Condition* right, int length)

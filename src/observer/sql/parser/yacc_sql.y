@@ -24,6 +24,7 @@ typedef struct ParserContext {
   Condition conditions[MAX_NUM];
   Condition sub_conditions[MAX_NUM]; //存放子查询的conditions
   CompOp comp;
+  CompOp sub_comp;
 	char id[MAX_NUM];
 } ParserContext;
 
@@ -466,8 +467,10 @@ sub_select:     /*简单子查询的语法解析树*/
         //交换ParserContext中暂存condition的数组
         swap_conditions(CONTEXT->conditions, CONTEXT->sub_conditions, MAX_NUM);
         //交换condition_length和value_length
-        swap_number(CONTEXT->condition_length, CONTEXT->sub_condition_length);
-        swap_number(CONTEXT->value_length, CONTEXT->sub_value_length);
+        swap_number(&CONTEXT->condition_length, &CONTEXT->sub_condition_length);
+        swap_number(&CONTEXT->value_length, &CONTEXT->sub_value_length);
+
+        swap_compOp(&CONTEXT->comp, &CONTEXT->sub_comp);
 
         //和子查询相关的临时变量清0
         CONTEXT->sub_value_length = 0;
@@ -489,8 +492,10 @@ sub_select_flag:
         //交换ParserContext中暂存condition的数组
         swap_conditions(CONTEXT->conditions, CONTEXT->sub_conditions, MAX_NUM);
         //交换condition_length和value_length
-        swap_number(CONTEXT->condition_length, CONTEXT->sub_condition_length);
-        swap_number(CONTEXT->value_length, CONTEXT->sub_value_length);
+        swap_number(&CONTEXT->condition_length, &CONTEXT->sub_condition_length);
+        swap_number(&CONTEXT->value_length, &CONTEXT->sub_value_length);
+
+        swap_compOp(&CONTEXT->comp, &CONTEXT->sub_comp);
     }
     ;    
 sub_select_action:         

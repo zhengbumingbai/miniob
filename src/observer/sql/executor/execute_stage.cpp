@@ -819,6 +819,12 @@ bool is_in_subset(std::shared_ptr<TupleValue> left_value, TupleSet* right_tuples
   for(int i = 0; i < right_tupleset->size(); i++){
     std::shared_ptr<TupleValue> right_value = right_tupleset->get_edit(i).get_edit(0);
     isOk = is_match(left_value, right_value, op);
+    if(isOk && op == EQUAL_TO){
+      break;
+    }
+    if(!isOk && op == NOT_EQUAL){
+      break;
+    }
   }
   return isOk;
 }

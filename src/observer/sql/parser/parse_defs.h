@@ -257,7 +257,9 @@ typedef struct _ExpressionNode
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
-void swap_number(size_t left, size_t right);
+void swap_compOp(CompOp* left, CompOp* right);
+
+void swap_number(size_t *left, size_t *right);
 
 void swap_conditions(Condition* left, Condition* right, int length);
 
