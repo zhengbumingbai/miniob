@@ -376,16 +376,16 @@ void value_destroy(Value *value) {
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr,
                     RelAttr *left_attr, Value *left_value, int right_is_attr,
-                    RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right, SimpleSubSelect *sub_select) {
+                    RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right, SimpleSubSelect *sub_select,int right_is_sub_select) {
   condition->comp = comp;
 
   condition->sub_select = sub_select;
 
   condition->left_expression = left;
   condition->right_expression = right;
-  assert(left != NULL);
-  if(right != NULL){
-    if (!left->isExpression && !right->isExpression)
+  
+  condition->right_is_sub_select = right_is_sub_select;
+    if ((left != NULL && !left->isExpression) && (right != NULL && !right->isExpression))
     {
         if(left->isValue) {
             condition->left_is_attr = 0;
@@ -403,7 +403,6 @@ void condition_init(Condition *condition, CompOp comp, int left_is_attr,
             condition->right_attr = *(right->relation_attr);
         }
     }
-  }
 }
 
 void condition_destroy(Condition *condition) {

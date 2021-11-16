@@ -690,8 +690,8 @@ RC ExecuteStage::do_select(const char *db, const Selects& selects,
         TupleSet new_tuple_set;
         new_tuple_set.set_schema(tuple_sets[0].schema());
         for (int i = 0; i < selects.condition_num; i++) {
-          if ((selects.conditions[i].left_expression->isExpression && selects.conditions[i].sub_select == nullptr) ||
-              (selects.conditions->right_expression != nullptr && selects.conditions[i].right_expression->isExpression)) {
+          if (selects.conditions[i].sub_select == nullptr &&
+            (selects.conditions[i].left_expression->isExpression  || selects.conditions[i].right_expression->isExpression)) {
             expression_conditions.push_back(selects.conditions[i]);
           }
           if(selects.conditions[i].sub_select != nullptr){
@@ -833,24 +833,45 @@ bool is_matched_sub_select(const Condition &condition,
                     const TupleSchema &joined_tuple_set_schema,
                     const Tuple &tuple) {
   bool isOk = true;
-  TupleSet* sub_select_result = static_cast<TupleSet*>(condition.sub_select->sub_select_result); 
+  int right_is_sub_select = condition.right_is_sub_select;
   CompOp op = condition.comp;
-  ExpressionNode* left_node = condition.left_expression;
-  std::shared_ptr<TupleValue> left_value =
-      calculate_result(left_node, joined_tuple_set_schema, tuple);
-  if(left_value == nullptr) return false;
 
-  if(op == IS_IN || op == NOT_IN){
-    return is_in_subset(left_value, sub_select_result, op);
-  }
-
+  TupleSet* sub_select_result = static_cast<TupleSet*>(condition.sub_select->sub_select_result); 
+  std::shared_ptr<TupleValue> left_value;
   std::shared_ptr<TupleValue> right_value;
+  //子查询在condition的右边
+  if(right_is_sub_select){
+      ExpressionNode* left_node = condition.left_expression;
+      left_value = calculate_result(left_node, joined_tuple_set_schema, tuple);
+      if(left_value == nullptr) return false;
 
-  if(sub_select_result->size() == 1 && sub_select_result->get(0).size() == 1){
-    right_value = sub_select_result->get(0).get_edit(0);
-    if(right_value == nullptr) return false;
-  }else{
-    return false;
+      if(op == IS_IN || op == NOT_IN){
+        return is_in_subset(left_value, sub_select_result, op);
+      }
+
+
+      if(sub_select_result->size() == 1 && sub_select_result->get(0).size() == 1){
+        right_value = sub_select_result->get(0).get_edit(0);
+        if(right_value == nullptr) return false;
+      }else{
+        return false;
+      }
+  }else{ //子查询在condition的左边
+      ExpressionNode* right_node = condition.right_expression;
+       right_value = calculate_result(right_node, joined_tuple_set_schema, tuple);
+      if(right_value == nullptr) return false;
+
+      //op为IN/NOT IN时，子查询不能在condition的左边
+      if(op == IS_IN || op == NOT_IN){
+        return false;
+      }
+
+      if(sub_select_result->size() == 1 && sub_select_result->get(0).size() == 1){
+        left_value = sub_select_result->get(0).get_edit(0);
+        if(left_value == nullptr) return false;
+      }else{
+        return false;
+      }
   }
 
   isOk = is_match(left_value, right_value, op);
@@ -1149,7 +1170,7 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db,
   for (size_t i = 0; i < selects.condition_num; i++) {
     const Condition &condition = selects.conditions[i];
 
-    if (!condition.left_expression->isExpression &&
+    if (condition.left_expression!= NULL && !condition.left_expression->isExpression &&
         condition.right_expression != NULL && !condition.right_expression->isExpression) {
       if ((condition.left_is_attr == 0 &&
            condition.right_is_attr == 0) ||  // 两边都是值

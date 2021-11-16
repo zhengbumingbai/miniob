@@ -738,13 +738,19 @@ condition_list:
 condition:
     add_sub_expression comOp add_sub_expression {
         Condition condition;
-        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, $1, $3, NULL);
+        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, $1, $3, NULL, 0);
         CONTEXT->conditions[CONTEXT->condition_length++] = condition;
     }
     | add_sub_expression comOp sub_select {
         //存在简单子查询，创建带简单子查询的condition
         Condition condition;
-        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, $1, NULL, $3);
+        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, $1, NULL, $3, 1);
+        CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+    }
+    | sub_select comOp add_sub_expression {
+        //存在简单子查询，创建带简单子查询的condition
+        Condition condition;
+        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, NULL, $3, $1, 0);
         CONTEXT->conditions[CONTEXT->condition_length++] = condition;
     }
     ;

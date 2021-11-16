@@ -105,6 +105,7 @@ typedef struct _Condition {
   struct _ExpressionNode *right_expression;
 
   SimpleSubSelect* sub_select;
+  int right_is_sub_select; //1时，操作符右边是子查询；0时操作符左边是子查询
 
 } Condition;
 
@@ -301,7 +302,7 @@ void value_destroy(Value *value);
 // bool CheckDateValid(const std::string &strDate);
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-                    int right_is_attr, RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right, SimpleSubSelect* sub_select);
+                    int right_is_attr, RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right, SimpleSubSelect* sub_select, int right_is_sub_select);
 void condition_destroy(Condition *condition);
 
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, int nullable);
