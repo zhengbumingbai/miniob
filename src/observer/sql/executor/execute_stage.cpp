@@ -845,9 +845,12 @@ bool is_matched_sub_select(const Condition &condition,
   }
 
   std::shared_ptr<TupleValue> right_value;
+
   if(sub_select_result->size() == 1 && sub_select_result->get(0).size() == 1){
     right_value = sub_select_result->get(0).get_edit(0);
     if(right_value == nullptr) return false;
+  }else{
+    return false;
   }
 
   isOk = is_match(left_value, right_value, op);
