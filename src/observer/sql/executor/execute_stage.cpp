@@ -810,8 +810,12 @@ bool is_in_subset(std::shared_ptr<TupleValue> left_value, TupleSet* right_tuples
 {
   bool isOk = true;
   if(op == IS_IN){
+    if(right_tupleset->size() == 0)
+       return false;
     op = EQUAL_TO;
   }else if(op == NOT_IN){
+    if(right_tupleset->size() == 0)
+       return true;
     op = NOT_EQUAL;
   }
   //确保只有一列
