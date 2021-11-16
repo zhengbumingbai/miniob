@@ -699,6 +699,17 @@ RC ExecuteStage::do_select(const char *db, const Selects& selects,
           }
         }
 
+        //当comp不是IN/NOT IN, sub_select返回的结果不是一个数值时，需要直接返回错误
+        if(sub_select_conditions.size() != 0){
+            Condition& sub_select_condition = sub_select_conditions[0];
+            CompOp sb_op = sub_select_condition.comp;
+            TupleSet* sub_select_result = static_cast<TupleSet*>(sub_select_condition.sub_select->sub_select_result); 
+            if( sb_op != IS_IN && sb_op != NOT_IN){    
+              if(!(sub_select_result->size() == 1 && sub_select_result->get(0).size() == 1)){
+                return RC::GENERIC_ERROR;
+              }
+            }
+        }
         for (int i = 0; i < tuple_sets[0].size(); i++) {
           Tuple tuple = tuple_sets[0].get(i);
           bool l_isOk = true;
