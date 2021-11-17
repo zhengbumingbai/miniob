@@ -1,1 +1,1 @@
-bison -d -b yacc_sql yacc_sql.y -v -Wcounterexamples
+bison -d -b yacc_sql yacc_sql.y

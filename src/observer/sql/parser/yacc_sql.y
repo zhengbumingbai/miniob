@@ -497,7 +497,8 @@ sub_select_flag:
 
         swap_compOp(&CONTEXT->comp, &CONTEXT->sub_comp);
     }
-    ;    
+    ;
+        
 sub_select_action:         
     attr FROM ID rel_list inner_join where group order RBRACE
     {
@@ -647,10 +648,14 @@ mul_or_div:
     ;
 
 atom_expression:
-    sign LBRACE add_sub_expression RBRACE{
+    SUB_OP LBRACE add_sub_expression RBRACE{
         $$ = $3;
         $$->isBracket = 1;
-        $$->sign = $1;
+        $$->sign = SUB;
+    }
+    |LBRACE add_sub_expression RBRACE{
+        $$ = $2;
+        $$->isBracket = 1;
     }
     |
 	ID {
