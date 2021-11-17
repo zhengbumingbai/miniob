@@ -13,14 +13,18 @@
 typedef struct ParserContext {
   Query * ssql;
   size_t select_length;
-  size_t condition_length;
+  size_t condition_length;  
+  size_t sub_condition_length; //标识子查询的conditon数量
   size_t from_length;
   size_t value_length;
+  size_t sub_value_length;  //标识子查询的value数量
   size_t record_length;
   Value values[MAX_NUM];
   Insert_Record records[MAX_NUM];
   Condition conditions[MAX_NUM];
+  Condition sub_conditions[MAX_NUM]; //存放子查询的conditions
   CompOp comp;
+  CompOp sub_comp;
 	char id[MAX_NUM];
 } ParserContext;
 
@@ -42,9 +46,11 @@ void yyerror(yyscan_t scanner, const char *str)
   query_reset(context->ssql);
   context->ssql->flag = SCF_ERROR;
   context->condition_length = 0;
+  context->sub_condition_length = 0;
   context->from_length = 0;
   context->select_length = 0;
   context->value_length = 0;
+  context->sub_value_length = 0;
   context->ssql->sstr.errors = NULL;
   printf("parse sql failed. error=%s", str);
 }
@@ -125,6 +131,7 @@ ParserContext *get_context(yyscan_t scanner)
 		SUB_OP
 		// MUL_OP
 		DIV_OP
+        IN 
 
 %union {
   struct _Attr *attr;
@@ -132,6 +139,7 @@ ParserContext *get_context(yyscan_t scanner)
   struct _Value *value1;
   struct _ExpressionTree *exp_tree;
   struct _ExpressionNode *exp_node;
+  struct _SimpleSubSelect *s_select;
   char *string;
   int number;
   float floats;
@@ -161,6 +169,7 @@ ParserContext *get_context(yyscan_t scanner)
 %type <exp_node> atom_expression
 %type <exp_node> add_sub_expression
 %type <exp_node> mul_div_expression
+%type <s_select> sub_select
 
 %%
 
@@ -441,10 +450,62 @@ select:				/*  select 语句的语法解析树*/
 
 			//临时变量清零
 			CONTEXT->condition_length=0;
-			CONTEXT->from_length=0;
-			CONTEXT->select_length=0;
+			CONTEXT->from_length=0;   //此字段在查询时未用到
+			CONTEXT->select_length=0;  //此字段在查询时未用到
 			CONTEXT->value_length = 0;
 	}
+    ;
+
+sub_select:     /*简单子查询的语法解析树*/
+    sub_select_flag sub_select_action
+    {
+        //存在子查询
+        CONTEXT->ssql->exisit_sub_select = 1;
+        //子查询做完了，切换回主查询
+        //交换子查询和主查询的queries
+        swap_queries(&CONTEXT->ssql->sstr, CONTEXT->ssql->sub_sstr);
+        //交换ParserContext中暂存condition的数组
+        swap_conditions(CONTEXT->conditions, CONTEXT->sub_conditions, MAX_NUM);
+        //交换condition_length和value_length
+        swap_number(&CONTEXT->condition_length, &CONTEXT->sub_condition_length);
+        swap_number(&CONTEXT->value_length, &CONTEXT->sub_value_length);
+
+        swap_compOp(&CONTEXT->comp, &CONTEXT->sub_comp);
+
+        //和子查询相关的临时变量清0
+        CONTEXT->sub_value_length = 0;
+        CONTEXT->sub_condition_length = 0;
+
+        //返回SimpleSubSelect
+        $$ = (SimpleSubSelect*)malloc(sizeof(SimpleSubSelect));
+        $$->sub_select_result = NULL;
+    }
+    ;
+
+sub_select_flag:  
+    LBRACE SELECT
+    {
+        //切换到子查询
+        CONTEXT->ssql->sub_sstr = (union Queries*)malloc(sizeof(union Queries));
+        //交换子查询和主查询的queries
+        swap_queries(&CONTEXT->ssql->sstr, CONTEXT->ssql->sub_sstr);
+        //交换ParserContext中暂存condition的数组
+        swap_conditions(CONTEXT->conditions, CONTEXT->sub_conditions, MAX_NUM);
+        //交换condition_length和value_length
+        swap_number(&CONTEXT->condition_length, &CONTEXT->sub_condition_length);
+        swap_number(&CONTEXT->value_length, &CONTEXT->sub_value_length);
+
+        swap_compOp(&CONTEXT->comp, &CONTEXT->sub_comp);
+    }
+    ;    
+sub_select_action:         
+    attr FROM ID rel_list inner_join where group order RBRACE
+    {
+		selects_append_relation(&CONTEXT->ssql->sstr.selection, $3);
+
+		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
+
+    }
     ;
 
 order:
@@ -677,7 +738,19 @@ condition_list:
 condition:
     add_sub_expression comOp add_sub_expression {
         Condition condition;
-        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, $1, $3);
+        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, $1, $3, NULL, 0);
+        CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+    }
+    | add_sub_expression comOp sub_select {
+        //存在简单子查询，创建带简单子查询的condition
+        Condition condition;
+        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, $1, NULL, $3, 1);
+        CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+    }
+    | sub_select comOp add_sub_expression {
+        //存在简单子查询，创建带简单子查询的condition
+        Condition condition;
+        condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, NULL, $3, $1, 0);
         CONTEXT->conditions[CONTEXT->condition_length++] = condition;
     }
     ;
@@ -691,6 +764,8 @@ comOp:
     | NE { CONTEXT->comp = NOT_EQUAL; }
 	| ISTOKEN { CONTEXT->comp = IS; }
 	| ISTOKEN NOT { CONTEXT->comp = ISNOT; }
+    | IN { CONTEXT->comp = IS_IN; }
+    | NOT IN { CONTEXT->comp = NOT_IN; }
     ;
 
 load_data:

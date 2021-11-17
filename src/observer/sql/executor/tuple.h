@@ -176,6 +176,9 @@ public:
     return fields_;
   }
 
+  int total_size() const {
+    return fields_.size() + aggr_fields_.size() + expression_fields_.size();
+  }
   const std::vector<AggrField> &aggr_fields() const {
     return aggr_fields_;
   }

@@ -79,8 +79,16 @@ typedef enum {
   GREAT_THAN,   //">"     5
   IS,           // is     6
   ISNOT,        // is not 7
+  IS_IN,        // in 8
+  NOT_IN,        // not in 9
   NO_OP
 } CompOp;
+
+//简单子查询
+typedef struct _SimpleSubSelect
+{
+  void* sub_select_result;
+}SimpleSubSelect;
 
 typedef struct _Condition {
   int left_is_attr;    // TRUE if left-hand side is an attribute
@@ -95,6 +103,9 @@ typedef struct _Condition {
 
   struct _ExpressionNode *left_expression;
   struct _ExpressionNode *right_expression;
+
+  SimpleSubSelect* sub_select;
+  int right_is_sub_select; //1时，操作符右边是子查询；0时操作符左边是子查询
 
 } Condition;
 
@@ -225,7 +236,9 @@ enum SqlCommandFlag {
 // struct of flag and sql_struct
 typedef struct Query {
   enum SqlCommandFlag flag;
-  union Queries sstr;
+  int exisit_sub_select;   //本次查询是否存在简单子查询
+  union Queries* sub_sstr;   //存放简单子查询
+  union Queries sstr;   //存放主查询
 } Query;
 
 
@@ -245,6 +258,14 @@ typedef struct _ExpressionNode
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
+void swap_compOp(CompOp* left, CompOp* right);
+
+void swap_number(size_t *left, size_t *right);
+
+void swap_conditions(Condition* left, Condition* right, int length);
+
+void swap_queries(union Queries* left, union Queries* right);
+
 void expression_node_init(ExpressionNode *node, int isExpression, ExpressionNode *left_expression, OpType op, ExpressionNode *right_expression, int isValue, RelAttr *relation_attr, Value* constant_value,int isBracket, OpType sign);
 
 void expression_node_destory(ExpressionNode *node);
@@ -281,7 +302,7 @@ void value_destroy(Value *value);
 // bool CheckDateValid(const std::string &strDate);
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-                    int right_is_attr, RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right);
+                    int right_is_attr, RelAttr *right_attr, Value *right_value,ExpressionNode *left,ExpressionNode *right, SimpleSubSelect* sub_select, int right_is_sub_select);
 void condition_destroy(Condition *condition);
 
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, int nullable);

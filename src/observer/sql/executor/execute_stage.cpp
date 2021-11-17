@@ -54,6 +54,9 @@ ExecuteStage::~ExecuteStage() {}
 void find_conditions(const Selects &selects, std::vector<Condition> &conditions,
                      std::vector<Condition> &expression_conditions);
 
+bool is_matched_sub_select(const Condition &condition,
+                    const TupleSchema &joined_tuple_set_schema,
+                    const Tuple &tuple);
 // add by cmk : 根据查询语句中指定的要查询的列，从joined
 // table中选出指定列组成新表
 void select_columns(const TupleSet &joined_table, const Selects &selects,
@@ -140,6 +143,51 @@ void ExecuteStage::callback_event(StageEvent *event, CallbackContext *context) {
   return;
 }
 
+void print_selects(const Selects& selects)
+{
+  LOG_DEBUG("show selects infomation");
+  LOG_DEBUG("selects attr num is [%d]",selects.attr_num);
+  LOG_DEBUG("selects relation num is [%d]",selects.relation_num);
+  LOG_DEBUG("selects condition num is [%d]",selects.condition_num);
+  LOG_DEBUG("selects aggr num is [%d]",selects.aggr_num);
+  LOG_DEBUG("selects order num is [%d]",selects.order_num);
+  LOG_DEBUG("selects group num is [%d]",selects.group_num);
+
+}
+RC ExecuteStage::select(const char *db, Query *sql,
+                           SessionEvent *session_event) {
+  RC rc = RC::SUCCESS;
+  //子查询 
+  TupleSet* sub_select_result = nullptr;
+  if(sql->sub_sstr != NULL){
+
+    const Selects &sub_selects = sql->sub_sstr->selection;
+    LOG_DEBUG("sub select information");
+    print_selects(sub_selects);
+    rc = do_select(db, sub_selects, session_event, true, &sub_select_result);
+  } 
+  if(rc != RC::SUCCESS ) {
+    if(sub_select_result != nullptr){
+      delete sub_select_result;
+    }
+    return rc;
+  }
+  //主查询
+  TupleSet* main_select_result = nullptr;
+  const Selects &main_selects = sql->sstr.selection;
+  for(int i = 0; i < main_selects.condition_num; i++){
+    if(main_selects.conditions[i].sub_select != nullptr){
+      main_selects.conditions[i].sub_select->sub_select_result = static_cast<void*>(sub_select_result);
+    }
+  }
+  LOG_DEBUG("main select information");
+  print_selects(main_selects);
+  rc =  do_select(db, main_selects, session_event, false, &main_select_result);
+  delete sub_select_result;
+  delete main_select_result;
+  return rc;
+}
+
 void ExecuteStage::handle_request(common::StageEvent *event) {
   ExecutionPlanEvent *exe_event = static_cast<ExecutionPlanEvent *>(event);
   SessionEvent *session_event = exe_event->sql_event()->session_event();
@@ -158,7 +206,7 @@ void ExecuteStage::handle_request(common::StageEvent *event) {
   switch (sql->flag) {
     case SCF_SELECT: {  // select
       RC rc =
-          do_select(current_db, sql, exe_event->sql_event()->session_event());
+          select(current_db, sql, exe_event->sql_event()->session_event());
       if (rc != RC::SUCCESS) {
         session_event->set_response("FAILURE\n");
       }
@@ -315,12 +363,11 @@ bool check_expression_valid(const Selects &selects, const char *db,
 // 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
 // 需要补充上这一部分.
 // 校验部分也可以放在resolve，不过跟execution放一起也没有关系
-RC ExecuteStage::do_select(const char *db, Query *sql,
-                           SessionEvent *session_event) {
+RC ExecuteStage::do_select(const char *db, const Selects& selects,
+                           SessionEvent *session_event, bool is_sub_select, TupleSet** select_result) {
   RC rc = RC::SUCCESS;
   Session *session = session_event->get_client()->session;
   Trx *trx = session->current_trx();
-  const Selects &selects = sql->sstr.selection;
 
   // Expression 元信息校验
   for (int i = 0; i < selects.attr_num; i++) {
@@ -567,23 +614,32 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
         }
         // 5. 合并所有TupleSet
         // 6. 打印TupleSet
-        TupleSet final_tupleset;
-        rc = group_compose(edited_sets, final_tupleset);
-        final_tupleset.print(ss, is_single_table);
+        TupleSet* final_tupleset = new TupleSet();
+        rc = group_compose(edited_sets, *final_tupleset);
+        *select_result = final_tupleset;
+        //父查询才打印结果
+        if(!is_sub_select){
+          (*final_tupleset).print(ss, is_single_table);
+        }
       } else {
-        TupleSet joined_table_selected;
+        TupleSet* joined_table_selected = new TupleSet();
         if (selects.aggr_num > 0) {
-          aggr_execution(selects, db, new_tuple_set, joined_table_selected);
-          joined_table_selected.print(ss, is_single_table);
+          aggr_execution(selects, db, new_tuple_set, *joined_table_selected);
+          if(!is_sub_select){
+            (*joined_table_selected).print(ss, is_single_table);
+          }
         } else {
-          select_columns(new_tuple_set, selects, joined_table_selected,
+          select_columns(new_tuple_set, selects, *joined_table_selected,
                          is_single_table);
           if (selects.order_num > 0) {
-            joined_table_selected.sort(is_single_table, selects.order_attr,
+            (*joined_table_selected).sort(is_single_table, selects.order_attr,
                                        selects.order_num);
           }
-          joined_table_selected.print(ss, is_single_table);
+          if(!is_sub_select){
+            (*joined_table_selected).print(ss, is_single_table);
+          }
         }
+        *select_result = joined_table_selected;
       }
     }
   } else {
@@ -613,44 +669,73 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
       }
       // 5. 合并所有TupleSet
       // 6. 打印TupleSet
-      TupleSet final_tupleset;
-      rc = group_compose(edited_sets, final_tupleset);
-      final_tupleset.print(ss, is_single_table);
+      TupleSet* final_tupleset = new TupleSet();
+      rc = group_compose(edited_sets, *final_tupleset);
+      *select_result = final_tupleset;
+      if(!is_sub_select){
+        (*final_tupleset).print(ss, is_single_table);
+      }
     } else {
       // 当前只查询一张表，直接返回结果即可
-      TupleSet table_selected;
+      TupleSet *table_selected = new TupleSet();
       if (selects.aggr_num > 0) {
-        aggr_execution(selects, db, tuple_sets[0], table_selected);
-        table_selected.print(ss, is_single_table);
+        aggr_execution(selects, db, tuple_sets[0], *table_selected);
+        *select_result = table_selected;
+        if(!is_sub_select){
+          (*table_selected).print(ss, is_single_table);
+        }
       } else {
         std::vector<Condition> expression_conditions;
+        std::vector<Condition> sub_select_conditions;
         TupleSet new_tuple_set;
         new_tuple_set.set_schema(tuple_sets[0].schema());
         for (int i = 0; i < selects.condition_num; i++) {
-          if (selects.conditions[i].left_expression->isExpression ||
-              selects.conditions[i].right_expression->isExpression) {
+          if (selects.conditions[i].sub_select == nullptr &&
+            (selects.conditions[i].left_expression->isExpression  || selects.conditions[i].right_expression->isExpression)) {
             expression_conditions.push_back(selects.conditions[i]);
+          }
+          if(selects.conditions[i].sub_select != nullptr){
+            sub_select_conditions.push_back(selects.conditions[i]);
           }
         }
 
+        //当comp不是IN/NOT IN, sub_select返回的结果不是一个数值时，需要直接返回错误
+        if(sub_select_conditions.size() != 0){
+            Condition& sub_select_condition = sub_select_conditions[0];
+            CompOp sb_op = sub_select_condition.comp;
+            TupleSet* sub_select_result = static_cast<TupleSet*>(sub_select_condition.sub_select->sub_select_result); 
+            if( sb_op != IS_IN && sb_op != NOT_IN){    
+              if(!(sub_select_result->size() == 1 && sub_select_result->get(0).size() == 1)){
+                return RC::GENERIC_ERROR;
+              }
+            }
+        }
         for (int i = 0; i < tuple_sets[0].size(); i++) {
           Tuple tuple = tuple_sets[0].get(i);
-          bool isOk = is_match_tuple(expression_conditions,
+          bool l_isOk = true;
+          //判断简单子查询的条件是否满足
+          if(sub_select_conditions.size() != 0){
+              l_isOk = is_matched_sub_select(sub_select_conditions[0], new_tuple_set.get_schema(), tuple);
+          }
+          bool r_isOk = is_match_tuple(expression_conditions,
                                      new_tuple_set.get_schema(), tuple);
+          bool isOk = (l_isOk && r_isOk);
           // 所有条件都满足
           if (isOk) {
             new_tuple_set.add(std::move(tuple));
           }
         }
 
-        select_columns(new_tuple_set, selects, table_selected, is_single_table);
+        select_columns(new_tuple_set, selects, *table_selected, is_single_table);
         // 先排序
         if (selects.order_num > 0) {
-          table_selected.sort(is_single_table, selects.order_attr,
+          (*table_selected).sort(is_single_table, selects.order_attr,
                               selects.order_num);
         }
-
-        table_selected.print(ss, is_single_table);
+        *select_result = table_selected;
+        if(!is_sub_select){
+          (*table_selected).print(ss, is_single_table);
+        }
       }
     }
   }
@@ -663,24 +748,9 @@ RC ExecuteStage::do_select(const char *db, Query *sql,
   return rc;
 }
 
-bool is_match_tuple(const std::vector<Condition> &expression_conditions,
-                    const TupleSchema &joined_tuple_set_schema,
-                    const Tuple &tuple) {
-  bool isOk = true;
-  for (int i = 0; i < expression_conditions.size(); i++) {
-    Condition condition = expression_conditions[i];
-    CompOp op = condition.comp;
-    ExpressionNode *left_node = expression_conditions[i].left_expression;
-    ExpressionNode *right_node = expression_conditions[i].right_expression;
-
-    std::shared_ptr<TupleValue> left_value =
-        calculate_result(left_node, joined_tuple_set_schema, tuple);
-    if(left_value == nullptr) return false;
-
-    std::shared_ptr<TupleValue> right_value =
-        calculate_result(right_node, joined_tuple_set_schema, tuple);
-    if(right_value == nullptr) return false;
-
+bool is_match(std::shared_ptr<TupleValue>& left_value, std::shared_ptr<TupleValue>& right_value, CompOp op)
+{
+    bool isOk = true;
     if (left_value != nullptr && right_value != nullptr) {
       float f1, f2;
       // 统一当成浮点数处理试试
@@ -705,25 +775,121 @@ bool is_match_tuple(const std::vector<Condition> &expression_conditions,
       // 表达式只支持了普通的条件判断 IS ISNOT未加入
       if (op == EQUAL_TO && result != 0) {
         isOk = false;
-        break;
       } else if (op == LESS_EQUAL && result > 0) {
         isOk = false;
-        break;
       } else if (op == NOT_EQUAL && result == 0) {
         isOk = false;
-        break;
       } else if (op == LESS_THAN && result >= 0) {
         isOk = false;
-        break;
       } else if (op == GREAT_EQUAL && result < 0) {
         isOk = false;
-        break;
       } else if (op == GREAT_THAN && result <= 0) {
         isOk = false;
-        break;
-      }
+      } 
+    }
+  return isOk;
+
+}
+bool is_match_tuple(const std::vector<Condition> &expression_conditions,
+                    const TupleSchema &joined_tuple_set_schema,
+                    const Tuple &tuple) {
+  bool isOk = true;
+  for (int i = 0; i < expression_conditions.size(); i++) {
+    Condition condition = expression_conditions[i];
+    CompOp op = condition.comp;
+    ExpressionNode *left_node = expression_conditions[i].left_expression;
+    ExpressionNode *right_node = expression_conditions[i].right_expression;
+
+    std::shared_ptr<TupleValue> left_value =
+        calculate_result(left_node, joined_tuple_set_schema, tuple);
+    if(left_value == nullptr) return false;
+
+    std::shared_ptr<TupleValue> right_value =
+        calculate_result(right_node, joined_tuple_set_schema, tuple);
+    if(right_value == nullptr) return false;
+
+    isOk = is_match(left_value, right_value, op);
+    //其中一个condition不满足，则认为不满足
+    if(isOk == false){
+      break;
     }
   }
+  return isOk;
+}
+
+bool is_in_subset(std::shared_ptr<TupleValue> left_value, TupleSet* right_tupleset, CompOp op)
+{
+  bool isOk = true;
+  if(op == IS_IN){
+    if(right_tupleset->size() == 0)
+       return false;
+    op = EQUAL_TO;
+  }else if(op == NOT_IN){
+    if(right_tupleset->size() == 0)
+       return true;
+    op = NOT_EQUAL;
+  }
+  //确保只有一列
+  assert(right_tupleset->get_schema().total_size() == 1);
+  for(int i = 0; i < right_tupleset->size(); i++){
+    std::shared_ptr<TupleValue> right_value = right_tupleset->get_edit(i).get_edit(0);
+    isOk = is_match(left_value, right_value, op);
+    if(isOk && op == EQUAL_TO){
+      break;
+    }
+    if(!isOk && op == NOT_EQUAL){
+      break;
+    }
+  }
+  return isOk;
+}
+
+bool is_matched_sub_select(const Condition &condition,
+                    const TupleSchema &joined_tuple_set_schema,
+                    const Tuple &tuple) {
+  bool isOk = true;
+  int right_is_sub_select = condition.right_is_sub_select;
+  CompOp op = condition.comp;
+
+  TupleSet* sub_select_result = static_cast<TupleSet*>(condition.sub_select->sub_select_result); 
+  std::shared_ptr<TupleValue> left_value;
+  std::shared_ptr<TupleValue> right_value;
+  //子查询在condition的右边
+  if(right_is_sub_select){
+      ExpressionNode* left_node = condition.left_expression;
+      left_value = calculate_result(left_node, joined_tuple_set_schema, tuple);
+      if(left_value == nullptr) return false;
+
+      if(op == IS_IN || op == NOT_IN){
+        return is_in_subset(left_value, sub_select_result, op);
+      }
+
+
+      if(sub_select_result->size() == 1 && sub_select_result->get(0).size() == 1){
+        right_value = sub_select_result->get(0).get_edit(0);
+        if(right_value == nullptr) return false;
+      }else{
+        return false;
+      }
+  }else{ //子查询在condition的左边
+      ExpressionNode* right_node = condition.right_expression;
+       right_value = calculate_result(right_node, joined_tuple_set_schema, tuple);
+      if(right_value == nullptr) return false;
+
+      //op为IN/NOT IN时，子查询不能在condition的左边
+      if(op == IS_IN || op == NOT_IN){
+        return false;
+      }
+
+      if(sub_select_result->size() == 1 && sub_select_result->get(0).size() == 1){
+        left_value = sub_select_result->get(0).get_edit(0);
+        if(left_value == nullptr) return false;
+      }else{
+        return false;
+      }
+  }
+
+  isOk = is_match(left_value, right_value, op);
   return isOk;
 }
 
@@ -1019,8 +1185,8 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db,
   for (size_t i = 0; i < selects.condition_num; i++) {
     const Condition &condition = selects.conditions[i];
 
-    if (!condition.left_expression->isExpression &&
-        !condition.right_expression->isExpression) {
+    if (condition.left_expression!= NULL && !condition.left_expression->isExpression &&
+        condition.right_expression != NULL && !condition.right_expression->isExpression) {
       if ((condition.left_is_attr == 0 &&
            condition.right_is_attr == 0) ||  // 两边都是值
           (condition.left_is_attr == 1 && condition.right_is_attr == 0 &&
